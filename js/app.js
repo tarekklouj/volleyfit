@@ -64,7 +64,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, vibrate: true
+    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system'
   },
   measures: [], history: [], swaps: {}, active: null
 });
@@ -87,6 +87,17 @@ function loadState() {
   return defaults();
 }
 let state = loadState();
+
+/* ================= Apparence ================= */
+const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+function applyTheme() {
+  const t = state.profile.theme, root = document.documentElement;
+  if (t === 'light' || t === 'dark') root.dataset.theme = t; else delete root.dataset.theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = getComputedStyle(root).getPropertyValue('--bg').trim() || '#EEF4F2';
+}
+darkQuery.addEventListener?.('change', applyTheme);
+applyTheme();
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify(state)); }
   catch (e) { toast('Sauvegarde impossible : le stockage du navigateur est bloqué.'); }
@@ -1035,6 +1046,13 @@ function renderProfile() {
     </section>
 
     <section class="panel form">
+      <h2>Apparence</h2>
+      <div class="seg" role="group" aria-label="Thème">${[['system', 'Système'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) =>
+        `<button type="button" data-theme-choice="${k}" aria-pressed="${p.theme === k}">${l}</button>`).join('')}</div>
+      <p class="muted small">Système suit le réglage clair ou sombre de ton téléphone.</p>
+    </section>
+
+    <section class="panel form">
       <h2>Chrono de repos</h2>
       <label class="switch"><input type="checkbox" id="p-sound" ${p.sound ? 'checked' : ''}><span>Bip à la fin du repos</span></label>
       <label class="switch"><input type="checkbox" id="p-vib" ${p.vibrate ? 'checked' : ''}><span>Vibration (Android)</span></label>
@@ -1065,6 +1083,10 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
+  $$('[data-theme-choice]', el).forEach(b => b.onclick = () => {
+    p.theme = b.dataset.themeChoice; save(); applyTheme();
+    $$('[data-theme-choice]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  });
   $$('[data-wmin]', el).forEach(b => b.onclick = () => {
     p.warmupMin = +b.dataset.wmin; save();
     $$('[data-wmin]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1090,14 +1112,14 @@ function renderProfile() {
       try {
         const s = JSON.parse(r.result);
         if (!s || typeof s !== 'object' || !s.profile) throw new Error();
-        state = hydrate(s); save(); toast('Données importées.'); renderProfile();
+        state = hydrate(s); save(); applyTheme(); toast('Données importées.'); renderProfile();
       } catch { toast('Fichier non reconnu : choisis un export VolleyFit (.json).'); }
     };
     r.readAsText(file);
   };
   $('#reset').onclick = () => {
     if (!confirm('Effacer toutes tes mesures, séances et réglages ? Exporte-les avant si besoin.')) return;
-    state = defaults(); save(); toast('Données effacées.'); renderProfile();
+    state = defaults(); save(); applyTheme(); toast('Données effacées.'); renderProfile();
   };
 }
 
@@ -1109,7 +1131,7 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

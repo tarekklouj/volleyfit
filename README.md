@@ -19,6 +19,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Suivi corporel** : poids, IMC, masse grasse, musculaire, osseuse, eau, objectifs de poids et de masse grasse.
 - **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.
 - **Cycles de 4 semaines** avec semaine allégée automatique.
+- **Thème clair, sombre ou système**, au choix dans Profil.
 - **Hors-ligne et installable**, données stockées uniquement sur ton appareil (export et import JSON).
 
 ## Mise en ligne avec GitHub Pages

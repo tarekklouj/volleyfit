@@ -30,6 +30,9 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+:root { color-scheme: light dark; }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0B1A1B; --surface: #12292A; --surface-2: #173234; --ink: #E4F1EE; --muted: #93B0AC;
