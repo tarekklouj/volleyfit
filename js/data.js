@@ -199,7 +199,7 @@ const EXERCISES = {
 const WARMUP_MACHINES = ["tapis", "velo", "rameur", "elliptique", "escalier"];
 
 const SESSIONS = {
-  A: { name: "Jambes & détente", color: "#C94F17", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
+  A: { name: "Jambes & détente", color: "#C9402F", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
     goal: "Pousser plus fort et plus vite, protéger genoux et chevilles.",
     warmNote: "Progressif : facile au début, transpiration légère à la fin. Termine par 3 accélérations courtes.",
     items: [
@@ -211,7 +211,7 @@ const SESSIONS = {
       { ex: "abducteurs", sets: 3, reps: "15", rest: 60 },
       { ex: "mollets-presse", sets: 3, reps: "15", rest: 60 }
     ] },
-  B: { name: "Épaules & haut du corps", color: "#1F4FB8", warmup: "tapis", cooldown: { ex: "velo", max: 10 },
+  B: { name: "Épaules & haut du corps", color: "#5A49C8", warmup: "tapis", cooldown: { ex: "velo", max: 10 },
     goal: "Une épaule solide pour attaquer et servir sans douleur.",
     warmNote: "Footing léger ou marche en pente. Tu dois pouvoir parler pendant l'effort.",
     items: [
@@ -224,7 +224,7 @@ const SESSIONS = {
       { ex: "y-raise", sets: 2, reps: "12", rest: 60 },
       { ex: "pull-over", sets: 3, reps: "12", rest: 60 }
     ] },
-  C: { name: "Puissance & gainage", color: "#0F7B6C", warmup: "rameur", cooldown: { ex: "elliptique", max: 10 },
+  C: { name: "Puissance & gainage", color: "#1F6FA8", warmup: "rameur", cooldown: { ex: "elliptique", max: 10 },
     goal: "Des hanches puissantes et un tronc stable en l'air.",
     warmNote: "Rythme régulier, puis 3 fois 30 secondes plus rapides sur la fin.",
     items: [
@@ -237,7 +237,7 @@ const SESSIONS = {
       { ex: "extension-lombaire", sets: 3, reps: "12", rest: 60 },
       { ex: "fractionne", duration: 8 }
     ] },
-  R: { name: "Récupération", color: "#4A5876", warmup: "velo", cooldown: { ex: "elliptique", max: 15 },
+  R: { name: "Récupération", color: "#557270", warmup: "velo", cooldown: { ex: "elliptique", max: 15 },
     goal: "Le lendemain d'un match : bouger sans fatiguer.",
     warmNote: "Très facile, résistance basse : le but est de faire circuler le sang.",
     items: [

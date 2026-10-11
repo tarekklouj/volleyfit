@@ -272,7 +272,7 @@ function openExercise(id) {
         </div>
         <button class="chip chip--sm" type="button" id="anim-speed" aria-pressed="false">Lent</button>
       </div>
-      <p class="small muted">En orange, ce qui bouge. En pointillés, le trajet du mouvement. La silhouette pâle montre la position de départ.</p>
+      <p class="small muted">En corail, ce qui travaille. En pointillés, le trajet du mouvement. La silhouette pâle montre la position de départ.</p>
     </div>
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
@@ -322,7 +322,7 @@ function renderToday() {
   const hello = p.name ? `Salut ${esc(p.name)}. ` : '';
   let hero;
   if (code === 'M') {
-    hero = `<section class="court" style="--sess:#15213A">${NET}
+    hero = `<section class="court" style="--sess:#12302F">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
       <h1 class="court__title">Jour de match</h1>
       <p class="court__meta">Pas de salle aujourd'hui. Avant le match : 5 minutes de rotations d'épaules à l'élastique et quelques sauts progressifs.</p>
@@ -337,7 +337,7 @@ function renderToday() {
       <button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>
     </section>`;
   } else {
-    hero = `<section class="court" style="--sess:#4A5876">${NET}
+    hero = `<section class="court" style="--sess:#557270">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
       <h1 class="court__title">Jour de repos</h1>
       <p class="court__meta">Les muscles se construisent pendant la récupération. Marche, étire-toi, dors bien.</p>
