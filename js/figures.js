@@ -22,7 +22,7 @@ const FIG = (() => {
 
   function solve(p) {
     const hip = p.hip, sh = add(hip, dir(p.t, T));
-    const J = { hip, sh, head: add(sh, dir(p.t, 13)) };
+    const J = { hip, sh, head: add(sh, dir(p.t, 13)), t: p.t };
     for (const i of [0, 1]) {
       const as = p.as ? p.as[i] : 1;
       if (p.hands) { [J['e' + i], J['w' + i]] = ik(sh, p.hands[i], U * as, F * as, p.eb ? p.eb[i] : -1); }
@@ -124,8 +124,8 @@ const FIG = (() => {
         const q = pts[16], p = pts[14];
         const a = Math.atan2(q[1] - p[1], q[0] - p[0]);
         const tip = [q[0] + Math.cos(a) * 3, q[1] + Math.sin(a) * 3];
-        const l = [q[0] + Math.cos(a + 2.5) * 7, q[1] + Math.sin(a + 2.5) * 7];
-        const r = [q[0] + Math.cos(a - 2.5) * 7, q[1] + Math.sin(a - 2.5) * 7];
+        const l = [q[0] + Math.cos(a + 2.5) * 9, q[1] + Math.sin(a + 2.5) * 9];
+        const r = [q[0] + Math.cos(a - 2.5) * 9, q[1] + Math.sin(a - 2.5) * 9];
         s = `<polyline class="trail" points="${pts.slice(0, 15).map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>` +
             `<polygon class="trail-head" points="${[tip, l, r].map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>`;
       }
@@ -133,11 +133,12 @@ const FIG = (() => {
     return (f._trail = s);
   }
 
-  function body(J, cls, act) {
+  function body(J, cls, act, f) {
     const L = (a, b, extra = '') => ln(J[a], J[b], 'limb' + extra + (act && act.has(a + '-' + b) ? ' act' : ''));
+    const eye = f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 2.6, 'eye') : '';
     return `<g class="${cls}">
       <g class="far">${L('hip', 'k1')}${L('k1', 'a1')}${ln(J.a1, J.t1, 'limb foot')}${L('sh', 'e1')}${L('e1', 'w1')}</g>
-      <g class="near">${L('hip', 'sh', ' trunk')}${circ(J.head, 9, 'head')}${L('hip', 'k0')}${L('k0', 'a0')}${ln(J.a0, J.t0, 'limb foot')}${L('sh', 'e0')}${L('e0', 'w0')}</g>
+      <g class="near">${L('hip', 'sh', ' trunk')}${circ(J.head, 9, 'head')}${eye}${L('hip', 'k0')}${L('k0', 'a0')}${ln(J.a0, J.t0, 'limb foot')}${L('sh', 'e0')}${L('e0', 'w0')}</g>
     </g>`;
   }
 
@@ -164,15 +165,16 @@ const FIG = (() => {
   }
 
   function frame(f, phase, ghost) {
+    if (f.draw) return (ghost ? `<g class="ghost">${f.draw(0, false)}</g>` : '') + f.draw(uAt(f, phase), true);
     const J = solve(poseAt(f, phase));
     let g = trail(f);
-    if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost');
-    return g + propsBack(f, J) + body(J, '', activeSet(f)) + propsFront(f, J);
+    if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost', null, f);
+    return g + propsBack(f, J) + body(J, '', activeSet(f), f) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`).join('');
   }
 
   function wrap(f, inner, label) {
     return `<svg class="fig" viewBox="0 0 200 150" role="img" aria-label="${label || 'Illustration'}">
-      <line class="ground" x1="6" y1="140" x2="194" y2="140"/>${bgSVG(f.bg)}<g class="fig-live">${inner}</g></svg>`;
+      ${f.view === 'top' ? '' : '<line class="ground" x1="6" y1="140" x2="194" y2="140"/>'}${bgSVG(f.bg)}<g class="fig-live">${inner}</g></svg>`;
   }
 
   /* ---------- définitions ---------- */
@@ -388,6 +390,125 @@ const FIG = (() => {
     { bg: [['l', 86, 100, 106, 84, 8], ['r', 32, 124, 24, 6, 3], ['l', 44, 130, 44, 140, 4], ['l', 96, 92, 96, 140, 4]] });
   for (const k of ['tapis', 'fractionne', 'escalier']) DEFS[k].loop = true;
 
+
+  /* ---------- vues de dessus (la personne regarde vers le bas de l'image) ---------- */
+  const T_ = (x, y, t, a) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`;
+  const seg = (a, b, cls) => ln(a, b, 'limb ' + cls);
+  const polar = (c, ang, r) => [c[0] + Math.cos(rad(ang)) * r, c[1] + Math.sin(rad(ang)) * r];
+  function arcPath(c, r, a0, a1) {
+    const n = 18, pts = Array.from({ length: n + 1 }, (_, i) => polar(c, a0 + (a1 - a0) * i / n, r));
+    const q = pts[n], p = pts[n - 2], a = Math.atan2(q[1] - p[1], q[0] - p[0]);
+    const tip = [q[0] + Math.cos(a) * 3, q[1] + Math.sin(a) * 3];
+    const l = [q[0] + Math.cos(a + 2.5) * 9, q[1] + Math.sin(a + 2.5) * 9], rr = [q[0] + Math.cos(a - 2.5) * 9, q[1] + Math.sin(a - 2.5) * 9];
+    return `<polyline class="trail" points="${pts.slice(0, n - 1).map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/><polygon class="trail-head" points="${[tip, l, rr].map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>`;
+  }
+  function lineTrail(a, b) {
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const tip = [b[0] + Math.cos(ang) * 3, b[1] + Math.sin(ang) * 3];
+    const l = [b[0] + Math.cos(ang + 2.5) * 9, b[1] + Math.sin(ang + 2.5) * 9], r = [b[0] + Math.cos(ang - 2.5) * 9, b[1] + Math.sin(ang - 2.5) * 9];
+    return `<line class="trail" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}"/><polygon class="trail-head" points="${[tip, l, r].map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>`;
+  }
+  const torsoTop = (cx, cy) => `<rect class="tv-torso" x="${cx - 34}" y="${cy - 11}" width="68" height="22" rx="11"/><circle class="tv-head" cx="${cx}" cy="${cy}" r="13"/><circle class="eye" cx="${cx - 4}" cy="${cy + 8}" r="2.4"/><circle class="eye" cx="${cx + 4}" cy="${cy + 8}" r="2.4"/>`;
+
+  DEFS['rotation-externe'] = { view: 'top', dur: 3800, draw(u, tr) {
+    const elbow = [132, 76], ang = 143 - 113 * u, hand = polar(elbow, ang, 38), pulley = [24, 104];
+    return `${tr ? arcPath(elbow, 38, 143, 30) : ''}
+      <circle class="eq" cx="${pulley[0]}" cy="${pulley[1]}" r="9"/>${tr ? T_(24, 126, 'Poulie', 'middle') : ''}
+      ${ln(pulley, hand, 'cable')}
+      ${torsoTop(96, 62)}
+      ${seg([62, 64], [58, 78], 'far-l')}
+      <rect class="pad" x="124" y="68" width="6" height="12" rx="2"/>
+      ${seg([128, 64], elbow, 'near-l')}${seg(elbow, hand, 'near-l act')}
+      <circle class="pad" cx="${f1(hand[0])}" cy="${f1(hand[1])}" r="5"/>
+      ${tr ? T_(100, 28, 'le coude reste collé au corps', 'middle') : ''}`;
+  } };
+
+  DEFS.pallof = { view: 'top', dur: 4200, hold: true, draw(u, tr) {
+    const pulley = [22, 92], hy = 86 + 40 * u, hand = [100, hy];
+    const out = 18 * (1 - u), mid = (68 + 100) / 2;
+    const eL = [mid - out * .2 - 2, (60 + hy) / 2], eR = [200 - (mid - out * .2 - 2), (60 + hy) / 2];
+    eL[0] -= out; eR[0] += out;
+    return `${tr ? lineTrail([100, 92], [100, 128]) : ''}
+      <circle class="eq" cx="${pulley[0]}" cy="${pulley[1]}" r="9"/>${tr ? T_(22, 114, 'Poulie', 'middle') : ''}
+      ${ln(pulley, hand, 'cable')}
+      ${torsoTop(100, 58)}
+      ${seg([68, 60], eL, 'far-l act')}${seg(eL, hand, 'far-l act')}
+      ${seg([132, 60], eR, 'near-l act')}${seg(eR, hand, 'near-l act')}
+      <circle class="pad" cx="100" cy="${f1(hy)}" r="5.5"/>
+      ${tr ? T_(100, 28, 'le buste ne tourne pas', 'middle') : ''}`;
+  } };
+
+  DEFS['reverse-fly'] = { view: 'top', dur: 3800, draw(u, tr) {
+    const L = 60, aL = 71 + 104 * u, aR = 180 - aL;
+    const sL = [68, 60], sR = [132, 60], hL = polar(sL, aL, L), hR = polar(sR, aR, L);
+    return `${tr ? arcPath(sL, L, 71, 175) + arcPath(sR, L, 109, 5) : ''}
+      <rect class="eq" x="74" y="76" width="52" height="9" rx="4"/>${tr ? T_(100, 98, 'coussin', 'middle') : ''}
+      ${torsoTop(100, 60)}
+      ${seg(sL, hL, 'far-l act')}${seg(sR, hR, 'near-l act')}
+      <circle class="pad" cx="${f1(hL[0])}" cy="${f1(hL[1])}" r="5"/><circle class="pad" cx="${f1(hR[0])}" cy="${f1(hR[1])}" r="5"/>`;
+  } };
+
+  function legsTop(u, open, tr) {
+    const t = open ? u : 1 - u;
+    const hipL = [90, 70], hipR = [110, 70];
+    const kL = [94 - 30 * t, 124 - 6 * t], kR = [106 + 30 * t, 124 - 6 * t];
+    const padOff = open ? 8 : -8;
+    const a0 = Math.atan2(124 - 70, 94 - 90) * 180 / Math.PI, a1 = Math.atan2(118 - 70, 64 - 90) * 180 / Math.PI;
+    const b0 = 180 - a0, b1 = 180 - a1;
+    const L = Math.hypot(4, 54);
+    const trails = !tr ? '' : open ? arcPath(hipL, L, a0, a1) + arcPath(hipR, L, b0, b1) : arcPath(hipL, Math.hypot(30, 48), a1, a0) + arcPath(hipR, Math.hypot(30, 48), b1, b0);
+    return `${trails}
+      <rect class="eq" x="62" y="34" width="76" height="9" rx="4"/>
+      <rect class="eq" x="66" y="44" width="68" height="44" rx="10"/>
+      ${torsoTop(100, 52)}
+      ${seg([68, 54], [64, 80], 'far-l')}${seg([132, 54], [136, 80], 'near-l')}
+      ${seg(hipL, kL, 'far-l act')}${seg(hipR, kR, 'near-l act')}
+      <circle class="pad" cx="${f1(kL[0] - padOff)}" cy="${f1(kL[1])}" r="6"/><circle class="pad" cx="${f1(kR[0] + padOff)}" cy="${f1(kR[1])}" r="6"/>
+      ${tr ? T_(100, 146, open ? 'coussins à l\'extérieur des genoux' : 'coussins à l\'intérieur des genoux', 'middle') : ''}`;
+  }
+  DEFS.abducteurs = { view: 'top', dur: 3600, draw: (u, tr) => legsTop(u, true, tr) };
+  DEFS.adducteurs = { view: 'top', dur: 3600, draw: (u, tr) => legsTop(u, false, tr) };
+
+  for (const k of ['woodchop', 'medball-rotation', 'saut-patineur', 'mobilite-90-90', 'planche-laterale']) if (DEFS[k]) DEFS[k].view = 'front';
+
+  /* Étiquettes du matériel sur les vues de côté */
+  const LABELS = {
+    presse: [[150, 50, 'plateforme', 'middle']], 'presse-explosive': [[150, 50, 'plateforme', 'middle']], 'mollets-presse': [[150, 50, 'plateforme', 'middle']],
+    'face-pull': [[172, 34, 'poulie', 'middle']], 'tirage-vertical': [[150, 150, '', '']], 'pull-over': [[174, 12, 'poulie', 'middle']],
+    'y-raise': [[168, 120, 'poulie', 'middle']], woodchop: [[28, 14, 'poulie', 'middle']], 'leg-ext': [[110, 120, 'rouleau', 'start']],
+    'leg-curl': [[110, 120, 'rouleau', 'start']], 'hip-thrust': [[38, 108, 'banc', 'middle']], 'extension-lombaire': [[44, 120, 'cale-pieds', 'middle']],
+    'rowing-assis': [[152, 56, 'poulie', 'middle']], 'chest-press': [[150, 36, 'poignées', 'end']], 'crunch-machine': [[48, 14, 'machine', 'middle']]
+  };
+  for (const [k, v] of Object.entries(LABELS)) if (DEFS[k]) DEFS[k].labels = v.filter(x => x[2]);
+
+  const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
+  const HINTS = {
+    'rotation-externe': "Vue de dessus : tu regardes vers le bas de l'image. Le coude reste collé au corps, seul l'avant-bras pivote vers l'extérieur, comme une porte qui s'ouvre.",
+    pallof: "Vue de dessus. La poulie tire sur le côté : tu pousses les mains droit devant toi sans laisser le buste tourner vers la poulie.",
+    'reverse-fly': "Vue de dessus, poitrine contre le coussin. Les bras tendus s'ouvrent sur les côtés jusqu'à l'alignement des épaules.",
+    abducteurs: "Vue de dessus, assis. Les genoux s'écartent en poussant les coussins, puis reviennent lentement.",
+    adducteurs: "Vue de dessus, assis. Les genoux se rapprochent en serrant les coussins, puis s'écartent lentement.",
+    woodchop: "Vue de face. Bras presque tendus, tu tires la poignée du haut vers la hanche opposée en pivotant le buste.",
+    'face-pull': "Vue de côté. La corde vient vers le visage, coudes hauts.",
+    'tirage-vertical': "Vue de côté, assis. La barre descend vers le haut de la poitrine, coudes vers le bas.",
+    'chest-press': "Vue de côté, assis. Les bras poussent les poignées droit devant.",
+    'rowing-assis': "Vue de côté, assis. Les coudes reculent le long du corps, le buste reste droit.",
+    presse: "Vue de côté, dos sur le siège incliné. Les jambes poussent la plateforme puis reviennent lentement.",
+    'presse-explosive': "Vue de côté, dos sur le siège incliné. Descente lente, poussée la plus rapide possible.",
+    'leg-ext': "Vue de côté, assis. La jambe se tend puis reste immobile : c'est une tenue.",
+    'leg-curl': "Vue de côté, assis. Le talon descend et passe sous le siège.",
+    'smith-squat': "Vue de côté. La barre guidée reste sur le haut du dos, tu descends jusqu'à cuisses parallèles.",
+    'fente-smith': "Vue de côté. Un pied devant, un pied derrière : tu descends verticalement.",
+    'rdl-smith': "Vue de côté. Les hanches reculent, le dos reste plat, la barre glisse le long des jambes.",
+    'hip-thrust': "Vue de côté. Le haut du dos reste sur le banc, les hanches montent jusqu'à l'alignement épaules-genoux.",
+    'crunch-machine': "Vue de côté, assis. Le buste s'enroule vers les genoux.",
+    'extension-lombaire': "Vue de côté. Le bassin est calé sur le coussin, le buste remonte jusqu'à l'alignement avec les jambes.",
+    'y-raise': "Vue de côté. Bras tendus, les poignées montent de devant les cuisses jusqu'au-dessus de la tête.",
+    'pull-over': "Vue de côté. Bras presque tendus, la barre descend du haut jusqu'aux cuisses.",
+    'mollets-presse': "Vue de côté. Jambes tendues, seules les chevilles bougent : les orteils poussent la plateforme.",
+    'mollets-smith': "Vue de côté. Tu montes sur la pointe des pieds, talons dans le vide."
+  };
+
   /* ---------- API ---------- */
   function svg(id, label) {
     const f = DEFS[id];
@@ -478,5 +599,7 @@ const FIG = (() => {
       ${side(MAP.front, 0, 'Face')}${side(MAP.back, 108, 'Dos')}</svg>`;
   }
 
-  return { svg, mount, muscles, ids: Object.keys(DEFS) };
+  const view = id => VIEWS[DEFS[id]?.view || 'side'];
+  const hint = id => HINTS[id] || '';
+  return { svg, mount, muscles, view, hint, ids: Object.keys(DEFS) };
 })();

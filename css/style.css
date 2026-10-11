@@ -422,3 +422,17 @@ textarea { min-height: 84px; resize: vertical; }
 .ex-note textarea { min-height: 54px; }
 .btn--reco { box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-ink); }
 .sheet .field .seg { margin-top: 2px; }
+
+/* Lisibilité des animations */
+.fig .eye { fill: var(--thumb); stroke: none; }
+.fig .tv-torso { fill: var(--ink); }
+.fig .tv-head { fill: var(--ink); stroke: var(--thumb); stroke-width: 3; }
+.fig .limb.near-l { stroke: var(--ink); }
+.fig .limb.far-l { stroke: var(--fig-far); }
+.fig .limb.near-l.act { stroke: var(--accent); }
+.fig .limb.far-l.act { stroke: var(--accent); }
+.fig .lbl { font: 600 9px var(--body); fill: var(--muted); }
+.thumb .fig .lbl { display: none; }
+.fig .trail { stroke-width: 2.6; opacity: .9; }
+.anim__view { margin-left: auto; }
+.anim__hint { font-size: .95rem; line-height: 1.4; background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; }

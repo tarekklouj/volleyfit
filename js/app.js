@@ -283,8 +283,10 @@ function openExercise(id) {
           <button type="button" data-anim="end" aria-pressed="false">Arrivée</button>
         </div>
         <button class="chip chip--sm" type="button" id="anim-speed" aria-pressed="false">Lent</button>
+        <span class="pill anim__view">${FIG.view(e.fig)}</span>
       </div>
-      <p class="small muted">En corail, ce qui travaille. En pointillés, le trajet du mouvement. La silhouette pâle montre la position de départ.</p>
+      ${FIG.hint(e.fig) ? `<p class="anim__hint">${esc(FIG.hint(e.fig))}</p>` : ''}
+      <p class="small muted">En corail, ce qui travaille. La flèche en pointillés montre le trajet. La silhouette pâle est la position de départ.</p>
     </div>
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
@@ -1231,7 +1233,7 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
-const APP_VERSION = '8';
+const APP_VERSION = '9';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
