@@ -103,17 +103,37 @@ const isDeload = () => cycleWeek() === 4;
 const setsFor = it => isDeload() ? Math.max(1, it.sets - 1) : it.sets;
 const warmupFor = code => state.profile.warmupMachine !== 'auto' ? state.profile.warmupMachine : SESSIONS[code].warmup;
 
-function estimateMinutes(s) {
-  const sec = s.items.reduce((t, it) => {
-    if (it.duration) return t + it.duration * 60;
-    const work = it.hold ? it.hold * (it.perSide ? 2 : 1) : 45;
-    return t + setsFor(it) * (work + it.rest);
-  }, state.profile.warmupMin * 60);
-  return Math.round(sec / 300) * 5;
+/* Durée : chaque séance est ajustée pour durer entre 50 et 70 minutes, échauffement compris. */
+const SESSION_MIN = 50, SESSION_MAX = 70, SESSION_TARGET = 60, TRANSITION = 60;
+function itemSeconds(it, n) {
+  if (it.duration) return it.duration * 60 + TRANSITION;
+  const side = /par (jambe|côté|bras)/.test(it.reps || '') || it.perSide;
+  const work = it.hold ? it.hold * (it.perSide ? 2 : 1) + 10 : (side ? 70 : 40);
+  return n * (work + it.rest) + TRANSITION;
 }
+function fitSession(code, warmMin = state.profile.warmupMin) {
+  const s = SESSIONS[code];
+  const plan = s.items.map((it, slot) => ({ ...it, slot, n: it.duration ? 0 : setsFor(it), on: true }));
+  let cool = 0;
+  const total = () => warmMin * 60 + plan.filter(p => p.on).reduce((t, p) => t + itemSeconds(p, p.n), 0) + (cool ? cool * 60 + TRANSITION : 0);
+  const fromEnd = plan.map((_, i) => i).reverse();
+  const passes = [p => !p.core && p.n > 2, p => p.core && p.n > 3, p => !p.core && p.n > 1];
+  for (let guard = 0; total() > SESSION_MAX * 60 && guard < 200; guard++) {
+    let i;
+    for (const ok of passes) { i = fromEnd.find(j => plan[j].on && !plan[j].duration && ok(plan[j])); if (i !== undefined) break; }
+    if (i !== undefined) { plan[i].n--; continue; }
+    i = fromEnd.find(j => plan[j].on && !plan[j].core);
+    if (i === undefined) break;
+    plan[i].on = false;
+  }
+  if (s.cooldown) while (total() < SESSION_TARGET * 60 && cool < s.cooldown.max) cool++;
+  if (cool && cool < 3) cool = 0;
+  return { plan: plan.filter(p => p.on), cool, minutes: Math.round(total() / 60) };
+}
+const estimateMinutes = s => fitSession(Object.keys(SESSIONS).find(k => SESSIONS[k] === s)).minutes;
 function targetText(it) {
   if (it.kind === 'warmup' || it.kind === 'time' || it.duration) return `${it.minutes ?? it.duration} min`;
-  const n = it.sets?.length ?? setsFor(it);
+  const n = it.sets?.length ?? it.n ?? setsFor(it);
   const base = it.hold ? `${n} × ${it.hold} s${it.perSide ? ' par côté' : ''}` : `${n} × ${it.reps}`;
   return `${base}, repos ${fmtRest(it.rest)}`;
 }
@@ -276,7 +296,7 @@ function renderToday() {
       <p class="court__kicker">${hello}${DAYS[wd]}, semaine ${cycleWeek()} sur 4</p>
       <h1 class="court__title">${esc(s.name)}</h1>
       <p class="court__meta">${esc(s.goal)}</p>
-      <p class="court__facts"><span>${p.warmupMin} min d'échauffement</span><span>${s.items.length} exercices</span><span>environ ${estimateMinutes(s)} min</span></p>
+      <p class="court__facts"><span>${p.warmupMin} min d'échauffement</span><span>${fitSession(code).plan.length} exercices</span><span>${estimateMinutes(s)} min au total</span></p>
       <button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>
     </section>`;
   } else {
@@ -323,21 +343,23 @@ function renderToday() {
 
 /* ================= Séance en cours ================= */
 function buildItems(code) {
-  const s = SESSIONS[code], p = state.profile;
+  const s = SESSIONS[code], p = state.profile, fit = fitSession(code);
   const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: p.warmupMin, sets: [{ done: false }] }];
-  s.items.forEach((it, slot) => {
+  fit.plan.forEach(it => {
+    const slot = it.slot;
     const exId = state.swaps[`${code}:${slot}`] || it.ex;
     if (it.duration) { items.push({ ex: exId, slot, kind: 'time', minutes: it.duration, sets: [{ done: false }] }); return; }
     items.push({
       ex: exId, slot, kind: it.hold ? 'hold' : 'reps', reps: it.reps, hold: it.hold, perSide: it.perSide, rest: it.rest,
-      sets: Array.from({ length: setsFor(it) }, () => ({ kg: '', reps: '', sec: '', done: false }))
+      sets: Array.from({ length: it.n }, () => ({ kg: '', reps: '', sec: '', done: false }))
     });
   });
+  if (fit.cool) items.push({ ex: s.cooldown.ex, kind: 'time', cooldown: true, minutes: fit.cool, sets: [{ done: false }] });
   return items;
 }
 function startSession(code) {
   if (state.active && !confirm('Une séance est déjà en cours. La remplacer ?')) return;
-  state.active = { code, start: Date.now(), items: buildItems(code), rpe: '', notes: '' };
+  state.active = { code, start: Date.now(), planned: fitSession(code).minutes, items: buildItems(code), rpe: '', notes: '' };
   save();
   go('today');
 }
@@ -348,7 +370,7 @@ function renderWorkout(el) {
   el.innerHTML = `
     <header class="wk-head" style="--sess:${s.color}">
       <div class="wk-head__row">
-        <div><p class="muted small">Séance ${a.code}</p><h2>${esc(s.name)}</h2></div>
+        <div><p class="muted small">Séance ${a.code}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
         <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
@@ -378,7 +400,7 @@ function itemHTML(it, i) {
     <button class="wx__fig" type="button" data-info="${it.ex}" aria-label="Voir comment faire : ${esc(e.name)}">${exThumb(it.ex)}</button>
     <div class="wx__title">
       <h3>${esc(e.name)}</h3>
-      <p class="wx__target">${it.kind === 'warmup' ? 'Échauffement, ' : ''}${targetText(it)}</p>
+      <p class="wx__target">${it.kind === 'warmup' ? 'Échauffement, ' : it.cooldown ? 'Retour au calme, ' : ''}${targetText(it)}</p>
       <p class="wx__equip">${esc(e.equip)}</p>
     </div>
     ${canSwap ? `<button class="icon-btn" type="button" data-swap="${i}" aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
@@ -396,7 +418,7 @@ function itemHTML(it, i) {
         <button class="btn btn--ghost" type="button" data-run="${i}">${ICON.play} Chrono</button>
         <button class="check" type="button" data-check="${i}" data-k="0" aria-pressed="${!!it.sets[0].done}" aria-label="Marquer comme fait">${ICON.check}</button>
       </div>
-      ${isW ? `<p class="small muted">${esc(s.warmNote)}</p>` : ''}`;
+      ${isW ? `<p class="small muted">${esc(s.warmNote)}</p>` : it.cooldown ? '<p class="small muted">Allure tranquille pour faire redescendre le cœur.</p>' : ''}`;
   } else {
     const prev = lastSetsFor(it.ex), loaded = !!e.loaded, f = it.kind === 'hold' ? 'sec' : 'reps';
     body = `<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
@@ -618,15 +640,16 @@ function renderProgram() {
   const el = $('#view-program'), p = state.profile;
   el.innerHTML = `
     <h1 class="page-title">Programme</h1>
-    <p>Trois séances par semaine à Basic-Fit, plus une séance de récupération après les matchs. Chaque séance commence par ${p.warmupMin} minutes d'échauffement cardio.</p>
+    <p>Trois séances par semaine à Basic-Fit, plus une séance de récupération après les matchs. Chaque séance dure entre 50 et 70 minutes, dont ${p.warmupMin} minutes d'échauffement cardio.</p>
     <p class="callout">Cycles de 4 semaines : 3 semaines où tu augmentes les charges, puis une semaine allégée. Quand tu réussis toutes les répétitions proprement, ajoute 2,5 à 5 % de charge la fois suivante.</p>
     ${Object.entries(SESSIONS).map(([k, s]) => `
       <article class="panel prog" style="--sess:${s.color}">
-        <div class="panel__head"><h2>Séance ${k}</h2><span class="muted small">environ ${estimateMinutes(s)} min</span></div>
+        <div class="panel__head"><h2>Séance ${k}</h2><span class="muted small">${estimateMinutes(s)} min</span></div>
         <p><strong>${esc(s.name)}.</strong> ${esc(s.goal)}</p>
         <div class="list">
           <button class="row" type="button" data-ex="${warmupFor(k)}">${exThumb(warmupFor(k), 'thumb--sm')}<span><strong>Échauffement : ${esc(EX[warmupFor(k)].name)}</strong><br><span class="muted small">${p.warmupMin} min</span></span></button>
-          ${s.items.map((it, slot) => { const id = state.swaps[`${k}:${slot}`] || it.ex; return `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${targetText(it)}</span></span></button>`; }).join('')}
+          ${fitSession(k).plan.map(it => { const id = state.swaps[`${k}:${it.slot}`] || it.ex; return `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${targetText(it)}</span></span></button>`; }).join('')}
+          ${fitSession(k).cool ? `<button class="row" type="button" data-ex="${s.cooldown.ex}">${exThumb(s.cooldown.ex, 'thumb--sm')}<span><strong>Retour au calme : ${esc(EX[s.cooldown.ex].name)}</strong><br><span class="muted small">${fitSession(k).cool} min</span></span></button>` : ''}
         </div>
         <button class="btn btn--block" style="background:${s.color}" data-start="${k}" type="button">${ICON.play} Commencer la séance ${k}</button>
       </article>`).join('')}
@@ -933,7 +956,7 @@ function renderProfile() {
       <label class="field"><span>Machine</span>
         <select id="p-wmachine"><option value="auto" ${p.warmupMachine === 'auto' ? 'selected' : ''}>Selon la séance (conseillé)</option>${WARMUP_MACHINES.map(m => `<option value="${m}" ${p.warmupMachine === m ? 'selected' : ''}>${esc(EX[m].name)}</option>`).join('')}</select>
       </label>
-      <p class="muted small">Selon la séance : vélo avant les jambes, tapis avant les épaules, rameur avant l'explosivité.</p>
+      <p class="muted small">Selon la séance : vélo avant les jambes, tapis avant les épaules, rameur avant l'explosivité. Le reste de la séance s'ajuste pour que le total reste entre 50 et 70 minutes.</p>
     </section>
 
     <section class="panel form">

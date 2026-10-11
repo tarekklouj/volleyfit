@@ -3,6 +3,9 @@
    Machines standard des clubs Basic-Fit. L'équipement varie d'un club
    à l'autre : chaque exercice propose des alternatives (bouton ⇄).
    type : "reps" (séries × répétitions), "hold" (séries × secondes), "time" (minutes)
+   Durée : l'app ajuste chaque séance pour qu'elle dure entre 50 et 70 minutes,
+   échauffement compris. Elle retire d'abord des séries aux exercices sans
+   "core: true", et complète avec le retour au calme ("cooldown") si besoin.
    ========================================================= */
 
 const EXERCISES = {
@@ -184,26 +187,26 @@ const EXERCISES = {
 const WARMUP_MACHINES = ["tapis", "velo", "rameur", "elliptique", "escalier"];
 
 const SESSIONS = {
-  A: { name: "Jambes & détente", color: "#C94F17", warmup: "velo",
+  A: { name: "Jambes & détente", color: "#C94F17", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
     goal: "Sauter plus haut et protéger genoux et chevilles.",
     warmNote: "Progressif : facile au début, transpiration légère à la fin. Termine par 3 accélérations courtes.",
     items: [
-      { ex: "box-jump", sets: 4, reps: "5", rest: 90 },
-      { ex: "presse", sets: 4, reps: "8-10", rest: 120 },
+      { ex: "box-jump", sets: 4, reps: "5", rest: 90, core: true },
+      { ex: "presse", sets: 4, reps: "8-10", rest: 120, core: true },
       { ex: "fente-bulgare", sets: 3, reps: "8 par jambe", rest: 90 },
-      { ex: "leg-ext-iso", sets: 4, hold: 45, rest: 90 },
+      { ex: "leg-ext-iso", sets: 4, hold: 45, rest: 90, core: true },
       { ex: "leg-curl", sets: 3, reps: "10", rest: 75 },
       { ex: "abducteurs", sets: 3, reps: "15", rest: 60 },
       { ex: "mollets-presse", sets: 3, reps: "15", rest: 60 }
     ] },
-  B: { name: "Épaules & haut du corps", color: "#1F4FB8", warmup: "tapis",
+  B: { name: "Épaules & haut du corps", color: "#1F4FB8", warmup: "tapis", cooldown: { ex: "velo", max: 10 },
     goal: "Une épaule solide pour attaquer et servir sans douleur.",
     warmNote: "Footing léger ou marche en pente. Tu dois pouvoir parler pendant l'effort.",
     items: [
-      { ex: "rot-ext", sets: 3, reps: "15 par bras", rest: 45 },
-      { ex: "face-pull", sets: 3, reps: "15", rest: 60 },
-      { ex: "tirage-vertical", sets: 3, reps: "10", rest: 90 },
-      { ex: "chest-press", sets: 3, reps: "10", rest: 90 },
+      { ex: "rot-ext", sets: 3, reps: "15 par bras", rest: 45, core: true },
+      { ex: "face-pull", sets: 3, reps: "15", rest: 60, core: true },
+      { ex: "tirage-vertical", sets: 3, reps: "10", rest: 90, core: true },
+      { ex: "chest-press", sets: 3, reps: "10", rest: 90, core: true },
       { ex: "rowing-assis", sets: 3, reps: "10", rest: 75 },
       { ex: "reverse-fly", sets: 3, reps: "12", rest: 60 },
       { ex: "ytw", sets: 2, reps: "8 de chaque lettre", rest: 60 },
@@ -213,22 +216,24 @@ const SESSIONS = {
     goal: "Se déplacer vite et rester stable en l'air.",
     warmNote: "Rythme régulier, puis 3 fois 30 secondes plus rapides sur la fin.",
     items: [
-      { ex: "saut-patineur", sets: 3, reps: "6 par côté", rest: 60 },
-      { ex: "kb-swing", sets: 4, reps: "12", rest: 75 },
+      { ex: "saut-patineur", sets: 3, reps: "6 par côté", rest: 60, core: true },
+      { ex: "kb-swing", sets: 4, reps: "12", rest: 75, core: true },
       { ex: "medball-rotation", sets: 3, reps: "8 par côté", rest: 60 },
-      { ex: "rdl", sets: 3, reps: "10", rest: 90 },
+      { ex: "rdl", sets: 3, reps: "10", rest: 90, core: true },
       { ex: "pallof", sets: 3, reps: "10 par côté", rest: 45 },
       { ex: "planche", sets: 3, hold: 40, rest: 30 },
       { ex: "planche-laterale", sets: 3, hold: 30, perSide: true, rest: 30 },
       { ex: "equilibre", sets: 3, hold: 30, perSide: true, rest: 20 },
-      { ex: "fractionne", duration: 10 }
+      { ex: "fractionne", duration: 8 }
     ] },
-  R: { name: "Récupération", color: "#4A5876", warmup: "velo",
+  R: { name: "Récupération", color: "#4A5876", warmup: "velo", cooldown: { ex: "elliptique", max: 15 },
     goal: "Le lendemain d'un match : bouger sans fatiguer.",
     warmNote: "Très facile, résistance basse : le but est de faire circuler le sang.",
     items: [
-      { ex: "foam-roller", duration: 6 },
-      { ex: "mobilite-90-90", sets: 2, reps: "8 par côté", rest: 30 },
+      { ex: "foam-roller", duration: 10, core: true },
+      { ex: "mobilite-90-90", sets: 3, reps: "8 par côté", rest: 30, core: true },
+      { ex: "rot-ext", sets: 2, reps: "15 par bras", rest: 45 },
+      { ex: "equilibre", sets: 2, hold: 30, perSide: true, rest: 20 },
       { ex: "sleeper", sets: 2, hold: 30, perSide: true, rest: 15 },
       { ex: "etirements", sets: 2, hold: 30, perSide: true, rest: 15 }
     ] }

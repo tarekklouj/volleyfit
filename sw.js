@@ -1,5 +1,5 @@
 // Cache hors-ligne : l'app fonctionne même sans réseau à la salle.
-const CACHE = 'volleyfit-v2';
+const CACHE = 'volleyfit-v3';
 const ASSETS = ['./', './index.html', './css/style.css', './js/data.js', './js/figures.js', './js/app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
