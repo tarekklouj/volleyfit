@@ -55,6 +55,7 @@ const ICON = {
   trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 01-8 0zM8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 20h8M10 17h4"/></svg>',
   search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>',
+  up: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>'
 };
 
@@ -66,12 +67,12 @@ const defaults = () => ({
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
     goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system'
   },
-  measures: [], history: [], swaps: {}, active: null
+  measures: [], history: [], swaps: {}, exNotes: {}, active: null
 });
 
 function hydrate(s) {
   const d = defaults();
-  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {} };
+  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {} };
   delete out.profile.position;
   for (const [k, v] of Object.entries(s.swaps || {})) if (EXERCISES[v]) out.swaps[k] = v;
   if (out.active && (!out.active.items || out.active.items.some(it => !EXERCISES[it.ex]))) out.active = null;
@@ -140,9 +141,9 @@ function itemSeconds(it, n) {
   const work = it.hold ? it.hold * (it.perSide ? 2 : 1) + 10 : (side ? 70 : 40);
   return n * (work + it.rest) + TRANSITION;
 }
-function fitSession(code, warmMin = state.profile.warmupMin) {
+function fitSession(code, warmMin = state.profile.warmupMin, light = false) {
   const s = SESSIONS[code];
-  const plan = s.items.map((it, slot) => ({ ...it, slot, n: it.duration ? 0 : setsFor(it), on: true }));
+  const plan = s.items.map((it, slot) => ({ ...it, slot, n: it.duration ? 0 : Math.max(1, setsFor(it) - (light ? 1 : 0)), on: true }));
   let cool = 0;
   const total = () => warmMin * 60 + plan.filter(p => p.on).reduce((t, p) => t + itemSeconds(p, p.n), 0) + (cool ? cool * 60 + TRANSITION : 0);
   const fromEnd = plan.map((_, i) => i).reverse();
@@ -287,6 +288,7 @@ function openExercise(id) {
     </div>
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
+    <label class="field ex-note"><span>Mes réglages sur cette machine</span><textarea id="ex-note" rows="2" placeholder="Ex. : siège 4, dossier 2, poignées hautes">${esc(state.exNotes[id] || '')}</textarea></label>
     <h3 class="sub">Muscles ciblés</h3>
     ${musclesHTML(e)}
     <h3 class="sub">Comment faire</h3>
@@ -296,7 +298,11 @@ function openExercise(id) {
     ${best ? `<p class="record">${ICON.trophy}<span>Ton record : <strong>${setText(id, best.s)}</strong>, le ${fmtDate(best.date)}</span></p>` : ''}
     ${e.alt?.length ? `<h3 class="sub">Si la machine est prise ou absente</h3>
       <div class="list">${e.alt.map(a => `<button class="row" type="button" data-ex="${a}">${exThumb(a, 'thumb--sm')}<span><strong>${esc(EX[a].name)}</strong><br><span class="muted small">${esc(EX[a].equip)}</span></span></button>`).join('')}</div>` : ''}
-  `, { label: e.name, onClose: () => anim.stop() });
+  `, { label: e.name, onClose: () => {
+    anim.stop();
+    if (state.active && view === 'today') state.active.items.forEach((x, i) => { if (x.ex === id) rerenderItem(i); });
+  } });
+  $('#ex-note', body).oninput = ev => { const v = ev.target.value.trim(); if (v) state.exNotes[id] = v; else delete state.exNotes[id]; save(); };
   anim = FIG.mount($('#anim-fig'), e.fig, { label: 'Animation : ' + e.name, onPhase: t => { const el = $('#anim-phase'); if (el) el.textContent = t; } });
   $$('[data-anim]', body).forEach(b => b.onclick = () => {
     anim.set(b.dataset.anim);
@@ -305,6 +311,40 @@ function openExercise(id) {
   });
   $('#anim-speed', body).onclick = e2 => e2.currentTarget.setAttribute('aria-pressed', String(anim.speed()));
   $$('[data-ex]', body).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
+}
+
+/* Muscles travaillés sur les 7 derniers jours : séries par muscle (principal 1, secondaire 0,5). */
+const KEY_MUSCLES = ['quadriceps', 'ischios', 'fessiers', 'mollets', 'dorsaux', 'coiffe', 'abdos'];
+function weekMuscles() {
+  const since = Date.now() - 7 * 864e5, count = {};
+  for (const h of state.history) {
+    if (new Date(h.date) < since) continue;
+    for (const it of h.items || []) {
+      const e = EX[it.ex];
+      if (!e || it.kind === 'warmup' || it.kind === 'time') continue;
+      const n = (it.sets || []).filter(x => x.done).length;
+      (e.target?.p || []).forEach(m => count[m] = (count[m] || 0) + n);
+      (e.target?.s || []).forEach(m => count[m] = (count[m] || 0) + n / 2);
+    }
+  }
+  const levels = Object.fromEntries(Object.entries(count).filter(([, v]) => v > 0).map(([k, v]) => [k, v <= 3 ? 1 : v <= 8 ? 2 : 3]));
+  return { count, levels };
+}
+function weekMusclesHTML() {
+  const { count, levels } = weekMuscles();
+  const top = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${MUSCLES[k]} (${Math.max(1, Math.round(v))})`);
+  const missing = KEY_MUSCLES.filter(k => !count[k]).slice(0, 3).map(k => MUSCLES[k]);
+  return `<section class="panel">
+    <div class="panel__head"><h2>Muscles travaillés</h2><span class="muted small">7 derniers jours</span></div>
+    ${top.length ? `<div class="muscles">
+      ${FIG.muscles({}, 'Muscles travaillés ces 7 derniers jours', levels)}
+      <div class="muscles__legend">
+        <p><strong>Le plus travaillé</strong><br>${top.join(', ')} séries</p>
+        ${missing.length ? `<p><strong>Pas encore cette semaine</strong><br>${missing.join(', ')}</p>` : '<p><strong>Tous les muscles clés</strong> ont été travaillés.</p>'}
+        <p class="heat"><span class="heat__sw l1"></span>1 à 3<span class="heat__sw l2"></span>4 à 8<span class="heat__sw l3"></span>9+</p>
+      </div>
+    </div>` : '<p class="empty">Termine une séance pour voir quels muscles tu as travaillés cette semaine.</p>'}
+  </section>`;
 }
 
 /* ================= Aujourd'hui ================= */
@@ -374,6 +414,7 @@ function renderToday() {
       <div class="stat"><p class="stat__value">${month.length}</p><p class="stat__label">${month.length > 1 ? 'séances' : 'séance'} en ${MONTHS[now.getMonth()]}</p></div>
       <div class="stat"><p class="stat__value">${fmtVolume(month.reduce((t, h) => t + (h.volume || 0), 0))}</p><p class="stat__label">soulevés ce mois</p></div>
     </section>
+    ${weekMusclesHTML()}
     ${last ? `<button class="panel last" type="button" data-session="${last.id}">
       <span class="tag" style="--sess:${SESSIONS[last.code]?.color}">${esc(last.code)}</span>
       <span><strong>Dernière séance : ${esc(last.name)}</strong><br><span class="muted small">${fmtDate(last.date)}, ${last.minutes} min, ${fmtVolume(last.volume || 0)}${last.prs?.length ? `, ${plural(last.prs.length, 'record')}` : ''}</span></span>
@@ -388,8 +429,8 @@ function renderToday() {
 }
 
 /* ================= Séance en cours ================= */
-function buildItems(code) {
-  const s = SESSIONS[code], p = state.profile, fit = fitSession(code);
+function buildItems(code, light = false) {
+  const s = SESSIONS[code], p = state.profile, fit = fitSession(code, undefined, light);
   const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: p.warmupMin, sets: [{ done: false }] }];
   fit.plan.forEach(it => {
     const slot = it.slot;
@@ -405,9 +446,49 @@ function buildItems(code) {
 }
 function startSession(code) {
   if (state.active && !confirm('Une séance est déjà en cours. La remplacer ?')) return;
-  state.active = { code, start: Date.now(), planned: fitSession(code).minutes, items: buildItems(code), rpe: '', notes: '' };
+  openCheckin(code);
+}
+function beginSession(code, light, checkin) {
+  state.active = { code, start: Date.now(), light, checkin, planned: fitSession(code, undefined, light).minutes, items: buildItems(code, light), rpe: '', notes: '' };
   save();
+  closeSheet();
   go('today');
+}
+
+/* Check-in : comment tu te sens avant de commencer ? */
+const CHECKIN = [
+  { key: 'energie', label: 'Énergie', opts: ['Faible', 'Normale', 'Top'], def: 1, warn: 0 },
+  { key: 'courbatures', label: 'Courbatures', opts: ['Aucune', 'Légères', 'Fortes'], def: 0, warn: 2 },
+  { key: 'douleur', label: 'Douleur (genou, épaule, dos)', opts: ['Aucune', 'Légère', 'Marquée'], def: 0, warn: 2 }
+];
+function openCheckin(code) {
+  const s = SESSIONS[code];
+  const val = Object.fromEntries(CHECKIN.map(c => [c.key, c.def]));
+  const body = openSheet(`
+    <h2 class="sheet__title">Comment tu te sens ?</h2>
+    <p class="muted">Séance ${code} : ${esc(s.name)}. Trois réponses pour adapter la séance.</p>
+    ${CHECKIN.map(c => `<div class="field"><span>${c.label}</span>
+      <div class="seg" role="group" aria-label="${c.label}">${c.opts.map((o, i) => `<button type="button" data-ck="${c.key}" data-v="${i}" aria-pressed="${i === c.def}">${o}</button>`).join('')}</div></div>`).join('')}
+    <div id="ck-advice"></div>
+    <button class="btn btn--block" type="button" id="ck-normal" style="background:${s.color}">${ICON.play} Séance complète, ${fitSession(code).minutes} min</button>
+    <button class="btn btn--ghost btn--block" type="button" id="ck-light">Version allégée, ${fitSession(code, undefined, true).minutes} min</button>
+  `, { label: 'Check-in avant séance' });
+  const advise = () => {
+    const tired = CHECKIN.some(c => val[c.key] === c.warn);
+    $('#ck-advice', body).innerHTML = tired
+      ? `<p class="callout callout--warn">On te conseille la <strong>version allégée</strong> : une série de moins par exercice.${val.douleur === 2 ? ' Si une douleur dépasse 4 sur 10 ou augmente pendant un exercice, arrête-le et parles-en à un kiné.' : ''}</p>`
+      : '<p class="callout">Tout est au vert : fonce sur la séance complète.</p>';
+    $('#ck-light', body).classList.toggle('btn--reco', tired);
+  };
+  $$('[data-ck]', body).forEach(b => b.onclick = () => {
+    val[b.dataset.ck] = +b.dataset.v;
+    $$(`[data-ck="${b.dataset.ck}"]`, body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    advise();
+  });
+  advise();
+  const summary = () => Object.fromEntries(CHECKIN.map(c => [c.key, c.opts[val[c.key]]]));
+  $('#ck-normal', body).onclick = () => beginSession(code, false, summary());
+  $('#ck-light', body).onclick = () => beginSession(code, true, summary());
 }
 
 function renderWorkout(el) {
@@ -416,7 +497,7 @@ function renderWorkout(el) {
   el.innerHTML = `
     <header class="wk-head" style="--sess:${s.color}">
       <div class="wk-head__row">
-        <div><p class="muted small">Séance ${a.code}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
+        <div><p class="muted small">Séance ${a.code}${a.light ? ', version allégée' : ''}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
         <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
@@ -438,6 +519,19 @@ function renderWorkout(el) {
   };
 }
 
+/* Charge suggérée : +2,5 ou +5 kg si toutes les répétitions ont été réussies la dernière fois. */
+function suggestFor(it) {
+  const e = EX[it.ex];
+  if (!e?.loaded || (it.kind !== 'reps' && it.kind !== 'hold')) return null;
+  const prev = lastSetsFor(it.ex).filter(x => num(x.kg));
+  if (!prev.length) return null;
+  const kg = Math.max(...prev.map(x => num(x.kg)));
+  const top = it.kind === 'hold' ? it.hold : Math.max(...(String(it.reps).match(/\d+/g) || [10]).map(Number));
+  const hit = prev.every(x => (it.kind === 'hold' ? num(x.sec) : num(x.reps)) >= top);
+  if (!hit || state.active?.light) return { kg, up: false };
+  return { kg: kg + (kg < 30 ? 2.5 : 5), up: true, from: kg };
+}
+
 function itemHTML(it, i) {
   const e = EX[it.ex], s = SESSIONS[state.active.code];
   const complete = it.sets.length && it.sets.every(x => x.done);
@@ -448,6 +542,7 @@ function itemHTML(it, i) {
       <h3>${esc(e.name)}</h3>
       <p class="wx__target">${it.kind === 'warmup' ? 'Échauffement, ' : it.cooldown ? 'Retour au calme, ' : ''}${targetText(it)}</p>
       <p class="wx__equip">${esc(e.equip)}${primaryText(e) ? ` <span class="wx__muscles">${esc(primaryText(e))}</span>` : ''}</p>
+      ${state.exNotes[it.ex] ? `<p class="wx__note">Mes réglages : ${esc(state.exNotes[it.ex])}</p>` : ''}
     </div>
     ${canSwap ? `<button class="icon-btn" type="button" data-swap="${i}" aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
   </div>`;
@@ -466,15 +561,15 @@ function itemHTML(it, i) {
       </div>
       ${isW ? `<p class="small muted">${esc(s.warmNote)}</p>` : it.cooldown ? '<p class="small muted">Allure tranquille pour faire redescendre le cœur.</p>' : ''}`;
   } else {
-    const prev = lastSetsFor(it.ex), loaded = !!e.loaded, f = it.kind === 'hold' ? 'sec' : 'reps';
-    body = `<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
+    const prev = lastSetsFor(it.ex), loaded = !!e.loaded, f = it.kind === 'hold' ? 'sec' : 'reps', sug = suggestFor(it);
+    body = `${sug?.up ? `<p class="suggest">${ICON.up}<span>Monte à <strong>${fmtKg(sug.kg)} kg</strong> : tu as réussi toutes tes répétitions à ${fmtKg(sug.from)} kg la dernière fois.</span></p>` : ''}<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
       <div class="sets__row sets__row--head" role="row"><span role="columnheader">Série</span><span role="columnheader">Précédent</span>${loaded ? '<span role="columnheader">kg</span>' : ''}<span role="columnheader">${f === 'sec' ? 'Sec' : 'Rép.'}</span><span></span></div>
       ${it.sets.map((st, k) => {
         const pv = prev[k] || prev[prev.length - 1];
         return `<div class="sets__row ${st.done ? 'is-done' : ''}" role="row" id="row-${i}-${k}">
           <span class="sets__n">${k + 1}</span>
           <span class="sets__prev">${pv ? setText(it.ex, pv).replace(' répétitions', '') : '–'}</span>
-          ${loaded ? `<input inputmode="decimal" data-f="kg" data-i="${i}" data-k="${k}" value="${esc(st.kg)}" placeholder="${esc(pv?.kg ?? '')}" aria-label="Série ${k + 1}, charge en kg">` : ''}
+          ${loaded ? `<input inputmode="decimal" data-f="kg" data-i="${i}" data-k="${k}" value="${esc(st.kg)}" placeholder="${esc(sug ? fmtKg(sug.kg).replace(',', '.') : (pv?.kg ?? ''))}" aria-label="Série ${k + 1}, charge en kg">` : ''}
           <input inputmode="numeric" data-f="${f}" data-i="${i}" data-k="${k}" value="${esc(st[f])}" placeholder="${esc(pv?.[f] ?? targetNum(it))}" aria-label="Série ${k + 1}, ${f === 'sec' ? 'secondes' : 'répétitions'}">
           <button class="check" type="button" data-check="${i}" data-k="${k}" aria-pressed="${!!st.done}" aria-label="Valider la série ${k + 1}">${ICON.check}</button>
         </div>`;
@@ -541,6 +636,10 @@ function toggleSet(i, k) {
     const lastSet = it.sets.every(x => x.done);
     const next = a.items.slice(i + 1).find(x => !x.sets.every(s => s.done));
     startTimer(it.rest, lastSet && next ? `Ensuite : ${EX[next.ex].name}` : 'Repos');
+    if (lastSet && next) {
+      const ni = a.items.indexOf(next);
+      setTimeout(() => $('#wx-' + ni)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 700);
+    }
   }
 }
 
@@ -616,7 +715,7 @@ function openFinish() {
     state.history.unshift({
       id: Date.now(), code: a.code, name: s.name, date: new Date(a.start).toISOString(),
       minutes: st.minutes, volume: st.volume, setsDone: st.done, setsTotal: st.total,
-      rpe: a.rpe, notes: a.notes, prs: prs.map(p => p.ex),
+      rpe: a.rpe, notes: a.notes, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
       items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
     });
     state.active = null;
@@ -994,6 +1093,7 @@ function openSession(id) {
       const detail = it.kind === 'warmup' || it.kind === 'time' ? `${it.minutes} min` : done.map(x => setText(it.ex, x)).join(', ');
       return `<p class="hist-ex"><strong>${esc(EX[it.ex]?.name || it.ex)}</strong>${isPR ? ` <span class="pill pill--sm">${ICON.trophy} record</span>` : ''}<br><span class="muted">${detail}</span></p>`;
     }).join('')}
+    ${h.checkin ? `<p class="muted small">Avant la séance : énergie ${esc(h.checkin.energie).toLowerCase()}, courbatures ${esc(h.checkin.courbatures).toLowerCase()}, douleur ${esc(h.checkin.douleur).toLowerCase()}${h.light ? ', version allégée' : ''}.</p>` : ''}
     ${h.rpe ? `<p>Ressenti : <strong>${esc(h.rpe)}/10</strong></p>` : ''}
     ${h.notes ? `<p class="callout">${esc(h.notes)}</p>` : ''}
     <button class="btn btn--danger btn--block" type="button" id="del-session">Supprimer cette séance</button>`, { label: h.name });
@@ -1131,7 +1231,7 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
-const APP_VERSION = '7';
+const APP_VERSION = '8';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

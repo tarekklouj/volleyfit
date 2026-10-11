@@ -468,10 +468,11 @@ const FIG = (() => {
     if (m[1] === 'r') return `<rect class="${cls}" x="${m[2]}" y="${m[3]}" width="${m[4]}" height="${m[5]}" rx="${m[6]}"/>`;
     return `<polygon class="${cls}" points="${m[2]}"/>`;
   }
-  function muscles(target = {}, label = 'Muscles ciblés') {
+  function muscles(target = {}, label = 'Muscles ciblés', levels = null) {
     const P = new Set(target.p || []), S = new Set(target.s || []);
+    const cls = k => levels ? (levels[k] ? 'mm-l' + levels[k] : 'mm-n') : P.has(k) ? 'mm-p' : S.has(k) ? 'mm-s' : 'mm-n';
     const side = (list, dx, name) => `<g transform="translate(${dx},4)"><g class="mm-base">${SILHOUETTE}</g>
-      ${list.map(m => muscleShape(m, P.has(m[0]) ? 'mm-p' : S.has(m[0]) ? 'mm-s' : 'mm-n')).join('')}
+      ${list.map(m => muscleShape(m, cls(m[0]))).join('')}
       <text x="50" y="188" text-anchor="middle">${name}</text></g>`;
     return `<svg class="musclemap" viewBox="0 0 210 196" role="img" aria-label="${label}">
       ${side(MAP.front, 0, 'Face')}${side(MAP.back, 108, 'Dos')}</svg>`;

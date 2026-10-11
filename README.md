@@ -20,6 +20,11 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.
 - **Cycles de 4 semaines** avec semaine allégée automatique.
 - **Thème clair, sombre ou système**, au choix dans Profil.
+- **Check-in avant séance** (énergie, courbatures, douleur) avec version allégée conseillée si besoin.
+- **Charge suggérée** : quand toutes les répétitions sont réussies, l'app propose +2,5 kg (ou +5 kg au-delà de 30 kg).
+- **Mes réglages machine** (siège, dossier, prise…) mémorisés pour chaque exercice et rappelés pendant la séance.
+- **Muscles travaillés sur 7 jours** en carte de chaleur, avec les muscles clés pas encore travaillés.
+- **Passage automatique** à l'exercice suivant après la dernière série.
 - **Hors-ligne et installable**, données stockées uniquement sur ton appareil (export et import JSON).
 
 ## Mise en ligne avec GitHub Pages
@@ -49,6 +54,17 @@ icon.svg              icône
 ```
 
 Aucune dépendance, aucune compilation : du HTML, CSS et JavaScript simples.
+
+## Idées pour la suite
+
+- **Synchronisation entre appareils** (compte et petit serveur) : aujourd'hui les données restent sur le téléphone.
+- **Notifications de fin de repos** même écran verrouillé (Web Push, possible sur iPhone pour une app installée depuis iOS 16.4).
+- **Import depuis Apple Santé** ou depuis la balance connectée pour le poids et la masse grasse.
+- **Journal des matchs** : minutes jouées, nombre de sauts estimé, douleurs, pour ajuster la charge de la semaine.
+- **Choix de son club Basic-Fit** et des machines disponibles pour ne proposer que ce qui existe sur place.
+- **Rappels agenda** (.ics) pour les jours de salle.
+- **Programme évolutif** : nouveau cycle avec d'autres exercices toutes les 8 à 12 semaines.
+- **Badges et défis** (10 séances, 3 mois de régularité, premier record…).
 
 ---
 

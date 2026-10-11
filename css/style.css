@@ -404,3 +404,21 @@ textarea { min-height: 84px; resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Version 8 : check-in, suggestion de charge, réglages, muscles de la semaine */
+.musclemap .mm-l1 { fill: var(--accent-soft); }
+.musclemap .mm-l2 { fill: color-mix(in srgb, var(--accent) 65%, var(--accent-soft)); }
+.musclemap .mm-l3 { fill: var(--accent); }
+.heat { display: flex; align-items: center; gap: 4px; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
+.heat__sw { width: 14px; height: 10px; border-radius: 3px; margin-left: 6px; }
+.heat__sw:first-child { margin-left: 0; }
+.heat__sw.l1 { background: var(--accent-soft); }
+.heat__sw.l2 { background: color-mix(in srgb, var(--accent) 65%, var(--accent-soft)); }
+.heat__sw.l3 { background: var(--accent); }
+.suggest { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--ball) 35%, transparent); font-size: .92rem; line-height: 1.35; }
+.suggest svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; margin-top: 1px; }
+.wx__note { font-size: .82rem; margin-top: 2px; color: var(--court); font-weight: 500; }
+.wx { scroll-margin-top: 120px; }
+.ex-note textarea { min-height: 54px; }
+.btn--reco { box-shadow: inset 0 0 0 2px var(--accent); color: var(--accent-ink); }
+.sheet .field .seg { margin-top: 2px; }
