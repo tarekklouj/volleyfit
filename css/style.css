@@ -441,3 +441,53 @@ textarea { min-height: 84px; resize: vertical; }
 .wk-cancel { width: 40px; height: 40px; background: var(--surface); }
 .toast { display: flex; align-items: center; gap: 14px; }
 .toast__btn { border: 0; background: transparent; color: var(--ball); font-weight: 700; padding: 6px 4px; min-height: 36px; cursor: pointer; }
+
+/* v11 : variété des exercices, nutrition */
+.link { border: 0; background: none; padding: 0; color: var(--court); font-weight: 600; text-decoration: underline; cursor: pointer; }
+.fam { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.fam__var { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--court) 15%, transparent); color: var(--court); font-size: .72rem; }
+.btn--court-ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.7); }
+.court .btn-row .btn { margin-top: 0; }
+.court .btn-row { margin-top: 18px; }
+.btn svg { fill: currentColor; }
+.btn--ghost svg, .btn--court-ghost svg { fill: none; stroke: currentColor; stroke-width: 2; }
+.goal-pick { display: grid; gap: 8px; }
+.goal-pick--2 { grid-template-columns: 1fr 1fr; }
+.goal-pick button { text-align: left; padding: 12px 14px; border: 0; border-radius: var(--radius); background: var(--surface-2); box-shadow: inset 0 0 0 1.5px var(--line); cursor: pointer; line-height: 1.3; display: grid; gap: 3px; }
+.goal-pick button span { font-size: .85rem; color: var(--muted); }
+.goal-pick button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--court); background: color-mix(in srgb, var(--court) 10%, var(--surface)); }
+.nutri-hero .kcal { font: 800 1.4rem var(--display); color: var(--muted); }
+.nutri-hero .kcal span { font-size: 3.6rem; color: var(--ink); line-height: 1; }
+.macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.macro { border-radius: var(--radius); padding: 12px; background: var(--surface-2); border-top: 4px solid var(--c); }
+.macro--p { --c: var(--accent); } .macro--c { --c: var(--court); } .macro--f { --c: var(--ball); }
+.macro__g { font: 800 1.6rem/1 var(--display); }
+.macro__l { font-size: .85rem; color: var(--muted); margin-top: 4px; }
+.track p { display: flex; justify-content: space-between; margin-top: 10px; }
+.track p:first-child { margin-top: 0; }
+.meter--p span { background: var(--accent); }
+.meter--k span { background: var(--court); }
+.water { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.water span { width: 18px; height: 24px; border-radius: 3px 3px 7px 7px; box-shadow: inset 0 0 0 2px var(--court); opacity: .5; }
+.water span.on { background: var(--court); opacity: 1; }
+.chip--food { min-height: 44px; font-weight: 400; }
+.food-log { margin-top: 12px; }
+.food-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; }
+.bars__col { display: grid; justify-items: center; gap: 4px; }
+.bars__track { position: relative; width: 100%; height: 110px; border-radius: 8px; background: var(--surface-2); overflow: hidden; }
+.bars__fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent-soft); border-radius: 8px 8px 0 0; }
+.bars__fill.ok { background: var(--ball); }
+.bars__goal { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--accent); z-index: 1; }
+.bars__v { font: 600 .85rem var(--display); }
+.bars__d { font-size: .78rem; color: var(--muted); }
+.meals { display: grid; gap: 8px; margin-top: 12px; }
+.meal { background: var(--surface-2); border-radius: var(--radius); padding: 12px; display: grid; gap: 6px; }
+.meal__top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.meal__p { font: 800 1.15rem var(--display); color: var(--accent-ink); white-space: nowrap; }
+.meal__bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tip { border-top: 1px solid var(--line); padding: 10px 0; }
+.tip summary { font-weight: 600; cursor: pointer; }
+.tip p { margin-top: 6px; color: var(--muted); }
+.quick { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.quick .chip { justify-content: space-between; display: flex; align-items: center; gap: 6px; padding: 0 12px; font-size: .9rem; white-space: normal; text-align: left; line-height: 1.2; }

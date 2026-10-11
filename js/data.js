@@ -130,7 +130,7 @@ const EXERCISES = {
     steps: ["Cuisses bloquées sous les boudins, prise un peu plus large que les épaules.", "Tire la barre vers le haut de la poitrine en sortant la poitrine.", "Remonte bras tendus en contrôlant."],
     mistake: "Tirer la barre derrière la nuque.",
     why: "Des dorsaux puissants rendent le bras armé plus rapide à l'attaque." },
-  "chest-press": { name: "Développé assis à la machine", zone: "Machines", equip: "Chest press", type: "reps", loaded: true, fig: "chest-press",
+  "chest-press": { name: "Développé assis à la machine", zone: "Machines", equip: "Chest press", type: "reps", loaded: true, fig: "chest-press", alt: ["smith-bench"],
     target: { p: ["pectoraux"], s: ["triceps", "deltoides"] },
     steps: ["Règle le siège pour que les poignées soient à hauteur de poitrine.", "Pousse jusqu'à bras presque tendus.", "Reviens en 2 secondes, coudes à 45° du corps."],
     mistake: "Coudes à hauteur des épaules : l'épaule est en position fragile.",
@@ -178,6 +178,89 @@ const EXERCISES = {
     mistake: "Cambrer au-delà de l'alignement.",
     why: "Protège le bas du dos, très sollicité à la réception des sauts." },
 
+
+  /* ---------- Masse musculaire : pectoraux, épaules, bras, dos ---------- */
+  "smith-bench": { name: "Développé couché à la Smith", zone: "Smith machine", equip: "Smith machine + banc plat", type: "reps", loaded: true, fig: "smith-bench", alt: ["chest-press", "smith-incline"],
+    target: { p: ["pectoraux"], s: ["triceps", "deltoides"] },
+    steps: ["Allongé sous la barre, elle tombe au niveau du bas des pectoraux.", "Descends la barre en 2 secondes jusqu'à frôler la poitrine, coudes à 45°.", "Pousse en expirant jusqu'à bras presque tendus."],
+    mistake: "Rebondir sur la poitrine ou décoller les fesses du banc.",
+    why: "L'exercice roi pour épaissir les pectoraux et gagner en force de poussée." },
+  "smith-incline": { name: "Développé incliné à la Smith", zone: "Smith machine", equip: "Smith machine + banc inclinable à 30°", type: "reps", loaded: true, fig: "smith-incline", alt: ["smith-bench", "chest-press"],
+    target: { p: ["pectoraux", "deltoides"], s: ["triceps"] },
+    steps: ["Banc à 30°, la barre descend vers le haut de la poitrine.", "Descends en 2 secondes, coudes à 45°.", "Pousse jusqu'à bras presque tendus."],
+    mistake: "Banc trop incliné : les épaules prennent le relais.",
+    why: "Développe le haut des pectoraux, la partie qui donne une poitrine bien remplie." },
+  "pec-deck": { name: "Pec deck (écarté à la machine)", zone: "Machines", equip: "Pec deck / butterfly", type: "reps", loaded: true, fig: "pec-deck", alt: ["cable-fly"],
+    target: { p: ["pectoraux"], s: ["deltoides"] },
+    steps: ["Dos contre le dossier, poignées à hauteur de poitrine.", "Ramène les bras devant toi en serrant les pectoraux 1 seconde.", "Rouvre lentement jusqu'à sentir l'étirement, sans aller plus loin."],
+    mistake: "Ouvrir trop loin en arrière : l'épaule se met en danger.",
+    why: "Isole les pectoraux après les développés, idéal pour le volume musculaire." },
+  "cable-fly": { name: "Écarté à la poulie vis-à-vis", zone: "Poulie", equip: "Double poulie (cable crossover)", type: "reps", loaded: true, fig: "cable-fly", alt: ["pec-deck"],
+    target: { p: ["pectoraux"], s: ["deltoides"] },
+    steps: ["Poulies à hauteur d'épaules, un pas en avant, coudes légèrement fléchis.", "Ramène les mains l'une vers l'autre devant la poitrine.", "Reviens lentement en gardant la même flexion des coudes."],
+    mistake: "Plier et tendre les coudes : ça devient un développé.",
+    why: "Tension constante sur les pectoraux du début à la fin du mouvement." },
+  "shoulder-press": { name: "Développé épaules à la machine", zone: "Machines", equip: "Shoulder press", type: "reps", loaded: true, fig: "shoulder-press", alt: ["smith-incline"],
+    target: { p: ["deltoides"], s: ["triceps", "trapezes"] },
+    steps: ["Siège réglé pour que les poignées soient à hauteur d'épaules.", "Pousse vers le haut sans verrouiller les coudes.", "Redescends en 2 secondes jusqu'à hauteur d'oreilles."],
+    mistake: "Cambrer le bas du dos pour pousser plus lourd.",
+    why: "Des épaules plus larges et plus fortes, utiles pour le contre." },
+  "lateral-raise": { name: "Élévations latérales à la poulie", zone: "Poulie", equip: "Poulie basse avec poignée", type: "reps", loaded: true, fig: "lateral-raise",
+    target: { p: ["deltoides"], s: ["trapezes"] },
+    steps: ["De profil à la poulie basse, poignée dans la main opposée.", "Monte le bras sur le côté jusqu'à hauteur d'épaule, coude légèrement fléchi.", "Redescends en 3 secondes. Charge légère."],
+    mistake: "Monter au-dessus de l'épaule ou hausser les épaules.",
+    why: "Élargit la carrure : le muscle qui donne des épaules rondes." },
+  "biceps-curl-cable": { name: "Curl biceps à la poulie", zone: "Poulie", equip: "Poulie basse avec barre", type: "reps", loaded: true, fig: "biceps-curl", alt: ["biceps-machine", "hammer-rope"],
+    target: { p: ["biceps"], s: [] },
+    steps: ["Face à la poulie basse, coudes collés au corps.", "Monte la barre jusqu'aux épaules en serrant les biceps.", "Redescends en 3 secondes, bras presque tendus en bas."],
+    mistake: "Balancer le buste pour monter la charge.",
+    why: "Des bras plus forts et plus volumineux, et des coudes mieux protégés." },
+  "biceps-machine": { name: "Curl biceps à la machine", zone: "Machines", equip: "Machine biceps (pupitre)", type: "reps", loaded: true, fig: "biceps-machine", alt: ["biceps-curl-cable"],
+    target: { p: ["biceps"], s: [] },
+    steps: ["Siège réglé pour que l'aisselle touche le haut du pupitre.", "Plie les coudes jusqu'en haut, serre 1 seconde.", "Redescends lentement sans tendre complètement."],
+    mistake: "Décoller les coudes du pupitre.",
+    why: "Isole les biceps sans possibilité de tricher." },
+  "hammer-rope": { name: "Curl marteau à la corde", zone: "Poulie", equip: "Poulie basse avec corde", type: "reps", loaded: true, fig: "biceps-curl", alt: ["biceps-curl-cable"],
+    target: { p: ["biceps"], s: [] },
+    steps: ["Corde à la poulie basse, pouces vers le haut.", "Monte les mains vers les épaules, coudes fixes.", "Redescends en 3 secondes."],
+    mistake: "Laisser les coudes avancer.",
+    why: "Travaille le biceps et l'avant-bras : utile pour la manchette et les frappes." },
+  "triceps-pushdown": { name: "Extension triceps à la poulie haute", zone: "Poulie", equip: "Poulie haute avec barre ou corde", type: "reps", loaded: true, fig: "triceps-pushdown", alt: ["triceps-overhead", "dips-assist"],
+    target: { p: ["triceps"], s: [] },
+    steps: ["Face à la poulie haute, coudes collés au corps.", "Pousse vers le bas jusqu'à bras tendus.", "Remonte jusqu'à angle droit, pas plus haut."],
+    mistake: "Écarter les coudes ou pencher le buste sur la barre.",
+    why: "Le triceps fait les deux tiers du volume du bras et donne de la puissance aux frappes." },
+  "triceps-overhead": { name: "Extension triceps au-dessus de la tête", zone: "Poulie", equip: "Poulie basse ou haute avec corde", type: "reps", loaded: true, fig: "triceps-overhead", alt: ["triceps-pushdown"],
+    target: { p: ["triceps"], s: [] },
+    steps: ["Dos à la poulie, corde derrière la tête, coudes vers le haut.", "Tends les bras vers l'avant et le haut.", "Reviens lentement derrière la tête."],
+    mistake: "Écarter les coudes sur les côtés.",
+    why: "Étire et travaille la longue portion du triceps, celle qui fait le plus de volume." },
+  "dips-assist": { name: "Dips assistés", zone: "Machines", equip: "Machine tractions et dips assistés", type: "reps", loaded: true, fig: "dips-assist", alt: ["triceps-pushdown"],
+    target: { p: ["triceps", "pectoraux"], s: ["deltoides"] },
+    steps: ["Genoux sur la plateforme, choisis le contrepoids : plus il est lourd, plus c'est facile.", "Descends jusqu'à coudes à 90°, buste légèrement penché.", "Pousse jusqu'à bras tendus."],
+    mistake: "Descendre trop bas : l'avant de l'épaule souffre.",
+    why: "Construit triceps et pectoraux avec ton propre poids." },
+  "traction-assist": { name: "Tractions assistées", zone: "Machines", equip: "Machine tractions et dips assistés", type: "reps", loaded: true, fig: "traction-assist", alt: ["tirage-vertical"],
+    target: { p: ["dorsaux"], s: ["biceps", "trapezes"] },
+    steps: ["Genoux sur la plateforme, prise un peu plus large que les épaules.", "Tire jusqu'à ce que le menton passe la barre.", "Redescends en 2 secondes, bras presque tendus."],
+    mistake: "Prendre trop de contrepoids : tu dois finir la série difficilement.",
+    why: "Le meilleur exercice pour élargir le dos." },
+  "row-unilateral": { name: "Tirage à la poulie un bras", zone: "Poulie", equip: "Poulie à mi-hauteur avec poignée", type: "reps", loaded: true, fig: "rowing-assis", alt: ["rowing-assis"],
+    target: { p: ["dorsaux"], s: ["biceps", "deltoides-arr"] },
+    steps: ["Une main sur la poignée, buste légèrement penché, pieds décalés.", "Tire le coude vers la hanche en serrant l'omoplate.", "Reviens en laissant l'épaule s'étirer vers l'avant."],
+    mistake: "Tourner le buste pour tirer.",
+    why: "Corrige les différences entre bras gauche et bras droit." },
+  "leg-extension": { name: "Leg extension", zone: "Machines", equip: "Leg extension", type: "reps", loaded: true, fig: "leg-ext-reps", alt: ["presse"],
+    target: { p: ["quadriceps"], s: [] },
+    steps: ["Dossier réglé pour aligner le genou avec l'axe de la machine.", "Tends les jambes en 1 seconde, serre 1 seconde en haut.", "Redescends en 3 secondes."],
+    mistake: "Lancer la charge avec élan.",
+    why: "Isole les quadriceps pour le volume musculaire." },
+  kickback: { name: "Kickback fessier à la poulie", zone: "Poulie", equip: "Poulie basse avec sangle de cheville", type: "reps", loaded: true, fig: "kickback", alt: ["hip-thrust"],
+    target: { p: ["fessiers"], s: ["ischios"] },
+    steps: ["Sangle à la cheville, mains sur le cadre, buste légèrement penché.", "Pousse la jambe vers l'arrière en serrant le fessier.", "Reviens lentement sans cambrer le dos."],
+    mistake: "Cambrer le bas du dos pour monter la jambe plus haut.",
+    why: "Fessiers plus forts et plus volumineux, moteur du saut." },
+
   /* ---------- Récupération ---------- */
   "foam-roller": { name: "Rouleau de massage", zone: "Étirements", equip: "Foam roller (zone étirements)", type: "time", fig: "foam-roller",
     target: { p: ["mollets", "quadriceps"], s: ["fessiers", "dorsaux"] },
@@ -198,54 +281,89 @@ const EXERCISES = {
 
 const WARMUP_MACHINES = ["tapis", "velo", "rameur", "elliptique", "escalier"];
 
-const SESSIONS = {
+/* =========================================================
+   Structure des séances : chaque ligne est une famille de mouvement.
+   "pool" = exercices interchangeables de la même famille. L'app en choisit
+   un (sans répéter le précédent ni doubler dans la semaine) et le garde
+   pendant tout un cycle de 4 semaines, à chaque séance, ou toujours
+   (réglage « Variété » dans Profil). "ex" seul = exercice toujours présent.
+   ========================================================= */
+const TEMPLATE = {
   A: { name: "Jambes & détente", color: "#C9402F", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
-    goal: "Pousser plus fort et plus vite, protéger genoux et chevilles.",
+    goal: "Pousser plus fort et plus vite, des jambes plus musclées, genoux protégés.",
     warmNote: "Progressif : facile au début, transpiration légère à la fin. Termine par 3 accélérations courtes.",
     items: [
-      { ex: "presse-explosive", sets: 4, reps: "10", rest: 90, core: true },
-      { ex: "presse", sets: 4, reps: "10", rest: 120, core: true },
-      { ex: "fente-smith", sets: 3, reps: "10 par jambe", rest: 90 },
-      { ex: "leg-ext-iso", sets: 4, hold: 45, rest: 90, core: true },
-      { ex: "leg-curl", sets: 3, reps: "10", rest: 75 },
-      { ex: "abducteurs", sets: 3, reps: "15", rest: 60 },
-      { ex: "mollets-presse", sets: 3, reps: "15", rest: 60 }
+      { slot: "Puissance des jambes", ex: "presse-explosive", sets: 4, reps: "10", rest: 90, core: true },
+      { slot: "Force des jambes", pool: ["smith-squat", "presse"], sets: 4, reps: "10", rest: 120, core: true },
+      { slot: "Une jambe à la fois", ex: "fente-smith", sets: 3, reps: "10 par jambe", rest: 90 },
+      { slot: "Tendon rotulien", ex: "leg-ext-iso", sets: 3, hold: 45, rest: 90, core: true },
+      { slot: "Ischio-jambiers", pool: ["leg-curl", "rdl-smith"], sets: 3, reps: "12", rest: 75, core: true },
+      { slot: "Fessiers et hanches", pool: ["kickback", "abducteurs", "hip-thrust"], sets: 3, reps: "12", rest: 60, repsBy: { kickback: "12 par jambe", abducteurs: "15" } },
+      { slot: "Mollets", pool: ["mollets-presse", "mollets-smith"], sets: 3, reps: "15", rest: 60 }
     ] },
-  B: { name: "Épaules & haut du corps", color: "#5A49C8", warmup: "tapis", cooldown: { ex: "velo", max: 10 },
-    goal: "Une épaule solide pour attaquer et servir sans douleur.",
+  B: { name: "Haut du corps", color: "#5A49C8", warmup: "rameur", cooldown: { ex: "velo", max: 10 },
+    goal: "Pectoraux, dos, épaules et bras plus épais, avec une coiffe des rotateurs solide.",
+    warmNote: "Rythme régulier, épaules relâchées. Termine par 3 fois 30 secondes plus rapides.",
+    items: [
+      { slot: "Prévention des épaules", ex: "rot-ext", sets: 2, reps: "15 par bras", rest: 45, core: true },
+      { slot: "Poussée horizontale", pool: ["smith-bench", "chest-press", "smith-incline"], sets: 4, reps: "10", rest: 120, core: true },
+      { slot: "Tirage vertical", pool: ["traction-assist", "tirage-vertical", "pull-over"], sets: 4, reps: "10", rest: 120, core: true, repsBy: { "pull-over": "12" } },
+      { slot: "Épaules", pool: ["shoulder-press", "lateral-raise"], sets: 3, reps: "12", rest: 75, repsBy: { "lateral-raise": "15" } },
+      { slot: "Tirage horizontal", pool: ["rowing-assis", "row-unilateral"], sets: 3, reps: "12", rest: 90, core: true, repsBy: { "row-unilateral": "12 par bras" } },
+      { slot: "Arrière des épaules", pool: ["face-pull", "reverse-fly", "y-raise"], sets: 3, reps: "15", rest: 60, repsBy: { "y-raise": "12" } },
+      { slot: "Biceps", pool: ["biceps-curl-cable", "biceps-machine", "hammer-rope"], sets: 3, reps: "12", rest: 60 },
+      { slot: "Triceps", pool: ["triceps-pushdown", "triceps-overhead", "dips-assist"], sets: 3, reps: "12", rest: 60, repsBy: { "dips-assist": "10" } }
+    ] },
+  C: { name: "Puissance & gainage", color: "#1F6FA8", warmup: "tapis", cooldown: { ex: "elliptique", max: 10 },
+    goal: "Hanches puissantes, tronc stable en l'air, et un complément pectoraux et dos.",
     warmNote: "Footing léger ou marche en pente. Tu dois pouvoir parler pendant l'effort.",
     items: [
-      { ex: "rot-ext", sets: 3, reps: "15 par bras", rest: 45, core: true },
-      { ex: "face-pull", sets: 3, reps: "15", rest: 60, core: true },
-      { ex: "tirage-vertical", sets: 3, reps: "10", rest: 90, core: true },
-      { ex: "chest-press", sets: 3, reps: "10", rest: 90, core: true },
-      { ex: "rowing-assis", sets: 3, reps: "10", rest: 75 },
-      { ex: "reverse-fly", sets: 3, reps: "12", rest: 60 },
-      { ex: "y-raise", sets: 2, reps: "12", rest: 60 },
-      { ex: "pull-over", sets: 3, reps: "12", rest: 60 }
+      { slot: "Extension de hanche", pool: ["hip-thrust", "rdl-smith"], sets: 4, reps: "10", rest: 90, core: true },
+      { slot: "Bas du dos", pool: ["extension-lombaire", "rdl-smith"], sets: 3, reps: "12", rest: 75, core: true, repsBy: { "rdl-smith": "10" } },
+      { slot: "Adducteurs et abducteurs", pool: ["adducteurs", "abducteurs"], sets: 3, reps: "12", rest: 60 },
+      { slot: "Pectoraux, volume", pool: ["pec-deck", "cable-fly", "dips-assist"], sets: 3, reps: "12", rest: 60, repsBy: { "dips-assist": "10" } },
+      { slot: "Dos, volume", pool: ["row-unilateral", "tirage-vertical", "pull-over"], sets: 3, reps: "12", rest: 75, repsBy: { "row-unilateral": "12 par bras" } },
+      { slot: "Rotation du tronc", pool: ["woodchop", "pallof"], sets: 3, reps: "10 par côté", rest: 45 },
+      { slot: "Abdominaux", ex: "crunch-machine", sets: 3, reps: "15", rest: 45 },
+      { slot: "Cardio fractionné", ex: "fractionne", duration: 8 }
     ] },
-  C: { name: "Puissance & gainage", color: "#1F6FA8", warmup: "rameur", cooldown: { ex: "elliptique", max: 10 },
-    goal: "Des hanches puissantes et un tronc stable en l'air.",
-    warmNote: "Rythme régulier, puis 3 fois 30 secondes plus rapides sur la fin.",
-    items: [
-      { ex: "hip-thrust", sets: 4, reps: "10", rest: 90, core: true },
-      { ex: "rdl-smith", sets: 3, reps: "10", rest: 90, core: true },
-      { ex: "adducteurs", sets: 3, reps: "12", rest: 60, core: true },
-      { ex: "woodchop", sets: 3, reps: "10 par côté", rest: 60 },
-      { ex: "pallof", sets: 3, reps: "10 par côté", rest: 45 },
-      { ex: "crunch-machine", sets: 3, reps: "15", rest: 45 },
-      { ex: "extension-lombaire", sets: 3, reps: "12", rest: 60 },
-      { ex: "fractionne", duration: 8 }
-    ] },
-  R: { name: "Récupération", color: "#557270", warmup: "velo", cooldown: { ex: "elliptique", max: 15 },
+  R: { name: "Récupération", color: "#557270", warmup: "velo", cooldown: { ex: "elliptique", max: 15 }, fixed: true,
     goal: "Le lendemain d'un match : bouger sans fatiguer.",
     warmNote: "Très facile, résistance basse : le but est de faire circuler le sang.",
     items: [
-      { ex: "foam-roller", duration: 10, core: true },
-      { ex: "rot-ext", sets: 2, reps: "15 par bras", rest: 45, core: true },
-      { ex: "face-pull", sets: 2, reps: "15", rest: 45 },
-      { ex: "abducteurs", sets: 2, reps: "15", rest: 45 },
-      { ex: "sleeper", sets: 2, hold: 30, perSide: true, rest: 15 },
-      { ex: "etirements", sets: 2, hold: 30, perSide: true, rest: 15 }
+      { slot: "Massage", ex: "foam-roller", duration: 10, core: true },
+      { slot: "Prévention des épaules", ex: "rot-ext", sets: 2, reps: "15 par bras", rest: 45, core: true },
+      { slot: "Arrière des épaules", ex: "face-pull", sets: 2, reps: "15", rest: 45 },
+      { slot: "Hanches", ex: "abducteurs", sets: 2, reps: "15", rest: 45 },
+      { slot: "Mobilité de l'épaule", ex: "sleeper", sets: 2, hold: 30, perSide: true, rest: 15 },
+      { slot: "Étirements", ex: "etirements", sets: 2, hold: 30, perSide: true, rest: 15 }
     ] }
 };
+
+/* Séances du moment, avec un exercice choisi pour chaque famille (rempli par l'app). */
+const SESSIONS = {};
+
+/* ---------- Nutrition ---------- */
+const MEAL_MOMENTS = { matin: "Petit-déj", midi: "Midi", soir: "Soir", collation: "Collation", avant: "Avant séance", apres: "Après séance", match: "Avant match" };
+const MEALS = [
+  { name: "Skyr, flocons d'avoine, banane et miel", p: 32, kcal: 520, tags: ["matin", "avant"], how: "200 g de skyr, 60 g de flocons, 1 banane, 1 c. à café de miel." },
+  { name: "Omelette de 3 œufs et pain complet", p: 28, kcal: 480, tags: ["matin"], how: "3 œufs, 2 tranches de pain complet, une tomate, un peu de fromage râpé." },
+  { name: "Poulet, riz basmati et brocolis", p: 45, kcal: 650, tags: ["midi", "apres"], how: "150 g de poulet, 80 g de riz cru, brocolis, 1 c. à soupe d'huile d'olive." },
+  { name: "Pâtes complètes bolognaise", p: 40, kcal: 720, tags: ["midi", "match"], how: "100 g de pâtes crues, 125 g de haché de bœuf 5 %, sauce tomate maison." },
+  { name: "Saumon, patate douce et haricots verts", p: 38, kcal: 620, tags: ["soir"], how: "150 g de saumon, 250 g de patate douce, haricots verts à volonté." },
+  { name: "Wrap thon, maïs et fromage frais", p: 35, kcal: 520, tags: ["midi"], how: "2 wraps complets, 1 boîte de thon, maïs, crudités, fromage frais léger." },
+  { name: "Filet de dinde, quinoa et légumes grillés", p: 42, kcal: 560, tags: ["midi", "soir"], how: "150 g de dinde, 70 g de quinoa cru, courgettes et poivrons grillés." },
+  { name: "Steak 5 %, pommes de terre et salade", p: 38, kcal: 640, tags: ["soir"], how: "150 g de steak haché 5 %, 300 g de pommes de terre au four, salade." },
+  { name: "Bol de riz, œufs, edamame et légumes", p: 32, kcal: 600, tags: ["soir"], how: "80 g de riz cru, 2 œufs, 100 g d'edamame, légumes sautés, sauce soja." },
+  { name: "Shake whey, banane et lait", p: 35, kcal: 380, tags: ["apres", "collation"], how: "1 dose de whey, 1 banane, 300 ml de lait demi-écrémé, mixer." },
+  { name: "Fromage blanc, fruits rouges et noix", p: 25, kcal: 300, tags: ["collation", "soir"], how: "250 g de fromage blanc 0 %, fruits rouges, une poignée de noix." },
+  { name: "Pain complet, beurre de cacahuète et banane", p: 14, kcal: 420, tags: ["avant", "collation"], how: "2 tranches de pain complet, 1 c. à soupe de beurre de cacahuète, 1 banane." },
+  { name: "Cottage cheese et crackers complets", p: 24, kcal: 330, tags: ["collation"], how: "200 g de cottage cheese, 4 crackers complets, concombre." },
+  { name: "Riz au poulet léger 3 h avant le match", p: 30, kcal: 550, tags: ["match"], how: "Riz blanc (digeste), poulet, peu de légumes et peu de gras pour éviter les lourdeurs." },
+  { name: "Banane et compote 1 h avant", p: 2, kcal: 200, tags: ["avant", "match"], how: "Sucres rapides faciles à digérer pour avoir de l'énergie sans lourdeur." }
+];
+const QUICK_FOODS = [
+  { name: "2 œufs", p: 12, kcal: 150 }, { name: "Skyr 150 g", p: 15, kcal: 95 }, { name: "Poulet 150 g", p: 35, kcal: 180 },
+  { name: "Thon (boîte)", p: 25, kcal: 120 }, { name: "Whey (1 dose)", p: 24, kcal: 120 }, { name: "Fromage blanc 200 g", p: 16, kcal: 100 },
+  { name: "Steak 5 % 150 g", p: 30, kcal: 190 }, { name: "Lait 250 ml", p: 8, kcal: 115 }
+];

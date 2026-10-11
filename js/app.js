@@ -65,14 +65,17 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system'
+    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle'
   },
-  measures: [], history: [], swaps: {}, exNotes: {}, active: null
+  measures: [], history: [], swaps: {}, exNotes: {}, active: null,
+  nutrition: { age: '', sex: 'h', objective: 'auto' }, food: {}, picks: {}, rerolls: {}
 });
 
 function hydrate(s) {
   const d = defaults();
-  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {} };
+  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
+  delete out.profile.goal;
+  if (!['cycle', 'seance', 'fixe'].includes(out.profile.variety)) out.profile.variety = 'cycle';
   delete out.profile.position;
   for (const [k, v] of Object.entries(s.swaps || {})) if (EXERCISES[v]) out.swaps[k] = v;
   if (out.active && (!out.active.items || out.active.items.some(it => !EXERCISES[it.ex]))) out.active = null;
@@ -88,6 +91,67 @@ function loadState() {
   return defaults();
 }
 let state = loadState();
+
+/* ================= Choix des exercices : aléatoire mais maîtrisé =================
+   Chaque famille de mouvement garde sa place dans la séance. L'exercice est tiré
+   parmi les variantes de la famille, de façon reproductible (même tirage tant que
+   le cycle ne change pas), sans reprendre le précédent ni doubler dans la semaine. */
+const VARIETY = {
+  cycle: { label: 'Chaque cycle', desc: 'Nouveaux exercices toutes les 4 semaines : le temps de progresser sur les charges.' },
+  seance: { label: 'Chaque séance', desc: 'Nouveaux exercices à chaque fois que tu refais une séance.' },
+  fixe: { label: 'Jamais', desc: 'Toujours les mêmes exercices.' }
+};
+function hashStr(str) { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function cycleIndex() {
+  const days = Math.round((new Date(isoDate(new Date()) + 'T00:00') - new Date(state.profile.cycleStart + 'T00:00')) / 864e5);
+  return Number.isFinite(days) && days > 0 ? Math.floor(days / 28) : 0;
+}
+function seedBase(code) {
+  const v = state.profile.variety;
+  if (v === 'fixe') return 0;
+  if (v === 'seance') return state.history.filter(h => h.code === code).length;
+  return cycleIndex();
+}
+const seedFor = code => `${seedBase(code)}.${state.rerolls[`${code}:${seedBase(code)}`] || 0}`;
+const swapKey = (code, slot) => `${code}:${slot}:${seedFor(code)}`;
+const poolOf = it => it.pool || [it.ex];
+
+function resolveSessions() {
+  const used = new Set(), chosen = {};
+  const order = [];
+  for (const [code, t] of Object.entries(TEMPLATE)) if (!t.fixed) t.items.forEach((it, slot) => order.push({ code, slot, it }));
+  order.sort((a, b) => poolOf(a.it).length - poolOf(b.it).length);
+  for (const { code, slot, it } of order) {
+    const key = `${code}:${slot}`, seed = seedFor(code), pool = poolOf(it), mem = state.picks[key];
+    let ex;
+    if (mem && mem.seed === seed && pool.includes(mem.ex) && !used.has(mem.ex)) ex = mem.ex;
+    else {
+      const free = pool.filter(e => !used.has(e));
+      const fresh = free.filter(e => e !== mem?.ex);
+      const list = fresh.length ? fresh : free.length ? free : pool;
+      ex = list[hashStr(key + '|' + seed) % list.length];
+      state.picks[key] = { seed, ex };
+    }
+    used.add(ex); chosen[key] = ex;
+  }
+  for (const k of Object.keys(SESSIONS)) delete SESSIONS[k];
+  for (const [code, t] of Object.entries(TEMPLATE)) {
+    SESSIONS[code] = { ...t, items: t.items.map((it, slot) => {
+      const ex = t.fixed ? it.ex : chosen[`${code}:${slot}`];
+      const out = { ...it, ex, reps: it.repsBy?.[ex] || it.reps };
+      delete out.pool; delete out.repsBy;
+      return out;
+    }) };
+  }
+}
+function rerollSession(code) {
+  const k = `${code}:${seedBase(code)}`;
+  state.rerolls[k] = (state.rerolls[k] || 0) + 1;
+  resolveSessions(); save();
+  toast(`Nouveaux exercices pour la séance ${code}.`);
+  render();
+}
+resolveSessions();
 
 /* ================= Apparence ================= */
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -229,7 +293,8 @@ function go(v) {
   window.scrollTo(0, 0);
 }
 function render() {
-  ({ today: renderToday, program: renderProgram, library: renderLibrary, progress: renderProgress, profile: renderProfile })[view]();
+  if (!state.active) resolveSessions();
+  ({ today: renderToday, program: renderProgram, nutrition: renderNutrition, progress: renderProgress, profile: renderProfile })[view]();
   const banner = $('#resume');
   banner.hidden = !(state.active && view !== 'today');
   if (!banner.hidden) banner.querySelector('span').textContent = `Séance en cours : ${SESSIONS[state.active.code].name}`;
@@ -387,7 +452,7 @@ function renderToday() {
       <h1 class="court__title">${esc(s.name)}</h1>
       <p class="court__meta">${esc(s.goal)}</p>
       <p class="court__facts"><span>${p.warmupMin} min d'échauffement</span><span>${fitSession(code).plan.length} exercices</span><span>${estimateMinutes(s)} min au total</span></p>
-      <button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>
+      <div class="btn-row"><button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>${TEMPLATE[code].fixed ? '' : `<button class="btn btn--court-ghost" data-reroll="${code}" type="button">${ICON.swap} Autres exercices</button>`}</div>
     </section>`;
   } else {
     hero = `<section class="court" style="--sess:#557270">${NET}
@@ -409,7 +474,7 @@ function renderToday() {
       <div class="panel__head"><h2>Ta semaine</h2><span class="muted small">${done} sur ${goal}</span></div>
       <div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>
       ${weekStrip(plan, wd)}
-      <p class="legend">A jambes, B épaules, C puissance et gainage, R récupération.</p>
+      <p class="legend">${Object.entries(SESSIONS).map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>
     </section>
     <section class="stats3">
       <div class="stat"><p class="stat__value">${st}</p><p class="stat__label">${st > 1 ? 'semaines' : 'semaine'} d'affilée à l'objectif</p></div>
@@ -428,6 +493,7 @@ function renderToday() {
     </section>`;
   $$('[data-start]', el).forEach(b => b.addEventListener('click', () => startSession(b.dataset.start)));
   $$('[data-session]', el).forEach(b => b.addEventListener('click', () => openSession(b.dataset.session)));
+  $$('[data-reroll]', el).forEach(b => b.addEventListener('click', () => rerollSession(b.dataset.reroll)));
 }
 
 /* ================= Séance en cours ================= */
@@ -436,7 +502,7 @@ function buildItems(code, light = false) {
   const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: p.warmupMin, sets: [{ done: false }] }];
   fit.plan.forEach(it => {
     const slot = it.slot;
-    const exId = EX[state.swaps[`${code}:${slot}`]] ? state.swaps[`${code}:${slot}`] : it.ex;
+    const exId = EX[state.swaps[swapKey(code, slot)]] ? state.swaps[swapKey(code, slot)] : it.ex;
     if (it.duration) { items.push({ ex: exId, slot, kind: 'time', minutes: it.duration, sets: [{ done: false }] }); return; }
     items.push({
       ex: exId, slot, kind: it.hold ? 'hold' : 'reps', reps: it.reps, hold: it.hold, perSide: it.perSide, rest: it.rest,
@@ -547,7 +613,7 @@ function suggestFor(it) {
 function itemHTML(it, i) {
   const e = EX[it.ex], s = SESSIONS[state.active.code];
   const complete = it.sets.length && it.sets.every(x => x.done);
-  const canSwap = it.kind !== 'warmup' && e.alt?.length || (it.slot !== undefined && state.swaps[`${state.active.code}:${it.slot}`]);
+  const canSwap = it.kind !== 'warmup' && e.alt?.length || (it.slot !== undefined && state.swaps[swapKey(state.active.code, it.slot)]);
   const head = `<div class="wx__head">
     <button class="wx__fig" type="button" data-info="${it.ex}" aria-label="Voir comment faire : ${esc(e.name)}">${exThumb(it.ex)}</button>
     <div class="wx__title">
@@ -665,9 +731,10 @@ function updateProgress() {
 
 function openSwap(i) {
   const a = state.active, it = a.items[i];
-  const key = `${a.code}:${it.slot}`;
+  const key = swapKey(a.code, it.slot);
   const original = SESSIONS[a.code].items[it.slot].ex;
-  const options = [original, ...(EX[original].alt || [])].filter(id => id !== it.ex);
+  const tpl = TEMPLATE[a.code].items[it.slot];
+  const options = [...new Set([original, ...poolOf(tpl), ...(EX[original].alt || [])])].filter(id => id !== it.ex && EX[id]?.type === EX[original].type);
   const body = openSheet(`
     <h2 class="sheet__title">Remplacer ${esc(EX[it.ex].name)}</h2>
     <p class="muted">Machine prise ou absente dans ton club ? Choisis une alternative. Ton choix sera gardé pour les prochaines séances.</p>
@@ -793,34 +860,51 @@ function tickElapsed() {
 setInterval(tickElapsed, 1000);
 
 /* ================= Programme ================= */
+let progMode = 'plan';
 function renderProgram() {
-  const el = $('#view-program'), p = state.profile;
+  const el = $('#view-program');
+  const head = `<h1 class="page-title">Entraînement</h1>
+    <div class="seg seg--wide" role="tablist">${[['plan', 'Mon programme'], ['lib', 'Tous les exercices']].map(([k, l]) =>
+      `<button type="button" data-pmode="${k}" aria-pressed="${k === progMode}">${l}</button>`).join('')}</div>`;
+  if (progMode === 'lib') { renderLibrary(el, head); }
+  else renderPlan(el, head);
+  $$('[data-pmode]', el).forEach(b => b.onclick = () => { progMode = b.dataset.pmode; renderProgram(); });
+}
+function renderPlan(el, head) {
+  const p = state.profile, v = VARIETY[p.variety];
   el.innerHTML = `
-    <h1 class="page-title">Programme</h1>
+    ${head}
     <p>Trois séances par semaine à Basic-Fit, plus une séance de récupération après les matchs. Chaque séance dure entre 50 et 70 minutes, dont ${p.warmupMin} minutes d'échauffement cardio.</p>
-    <p class="callout">Cycles de 4 semaines : 3 semaines où tu augmentes les charges, puis une semaine allégée. Quand tu réussis toutes les répétitions proprement, ajoute 2,5 à 5 % de charge la fois suivante.</p>
+    <p class="callout"><strong>Structure fixe, exercices variés.</strong> Chaque séance garde les mêmes familles de mouvements. Dans chaque famille, l'exercice change : ${v.label.toLowerCase() === 'jamais' ? 'jamais (réglage actuel)' : v.label.toLowerCase()}. <button class="link" type="button" id="goto-variety">Régler</button></p>
+    <p class="muted small">Cycles de 4 semaines : 3 semaines où tu augmentes les charges, puis une semaine allégée.</p>
     ${Object.entries(SESSIONS).map(([k, s]) => `
       <article class="panel prog" style="--sess:${s.color}">
         <div class="panel__head"><h2>Séance ${k}</h2><span class="muted small">${estimateMinutes(s)} min</span></div>
         <p><strong>${esc(s.name)}.</strong> ${esc(s.goal)}</p>
         <div class="list">
-          <button class="row" type="button" data-ex="${warmupFor(k)}">${exThumb(warmupFor(k), 'thumb--sm')}<span><strong>Échauffement : ${esc(EX[warmupFor(k)].name)}</strong><br><span class="muted small">${p.warmupMin} min</span></span></button>
-          ${fitSession(k).plan.map(it => { const id = state.swaps[`${k}:${it.slot}`] || it.ex; return `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${targetText(it)}</span></span></button>`; }).join('')}
-          ${fitSession(k).cool ? `<button class="row" type="button" data-ex="${s.cooldown.ex}">${exThumb(s.cooldown.ex, 'thumb--sm')}<span><strong>Retour au calme : ${esc(EX[s.cooldown.ex].name)}</strong><br><span class="muted small">${fitSession(k).cool} min</span></span></button>` : ''}
+          <button class="row" type="button" data-ex="${warmupFor(k)}">${exThumb(warmupFor(k), 'thumb--sm')}<span><span class="fam">Échauffement</span><br><strong>${esc(EX[warmupFor(k)].name)}</strong><br><span class="muted small">${p.warmupMin} min</span></span></button>
+          ${fitSession(k).plan.map(it => { const id = EX[state.swaps[swapKey(k, it.slot)]] ? state.swaps[swapKey(k, it.slot)] : it.ex; const varies = (TEMPLATE[k].items[it.slot].pool || []).length > 1;
+            return `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span><span class="fam">${esc(TEMPLATE[k].items[it.slot].slot)}${varies ? ' <span class="fam__var">variable</span>' : ''}</span><br><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${targetText(it)}</span></span></button>`; }).join('')}
+          ${fitSession(k).cool ? `<button class="row" type="button" data-ex="${s.cooldown.ex}">${exThumb(s.cooldown.ex, 'thumb--sm')}<span><span class="fam">Retour au calme</span><br><strong>${esc(EX[s.cooldown.ex].name)}</strong><br><span class="muted small">${fitSession(k).cool} min</span></span></button>` : ''}
         </div>
-        <button class="btn btn--block" style="background:${s.color}" data-start="${k}" type="button">${ICON.play} Commencer la séance ${k}</button>
+        <div class="btn-row">
+          <button class="btn" style="background:${s.color};flex:1" data-start="${k}" type="button">${ICON.play} Commencer</button>
+          ${TEMPLATE[k].fixed ? '' : `<button class="btn btn--ghost" type="button" data-reroll="${k}" ${state.active ? 'disabled' : ''}>${ICON.swap} Autres exercices</button>`}
+        </div>
       </article>`).join('')}
     <p class="muted small">Ce programme ne remplace pas l'avis d'un médecin ou d'un kiné, surtout en cas de douleur ou de blessure.</p>`;
   $$('[data-ex]', el).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
   $$('[data-start]', el).forEach(b => b.onclick = () => startSession(b.dataset.start));
+  $$('[data-reroll]', el).forEach(b => b.onclick = () => rerollSession(b.dataset.reroll));
+  $('#goto-variety', el).onclick = () => { go('profile'); setTimeout(() => $('#variety-section')?.scrollIntoView({ block: 'start' }), 50); };
 }
 
 /* ================= Bibliothèque ================= */
 let libQuery = '', libZone = 'Tous';
-function renderLibrary() {
-  const el = $('#view-library');
+function renderLibrary(el, head) {
   el.innerHTML = `
-    <h1 class="page-title">Exercices</h1>
+    ${head}
+    <p class="muted">${Object.keys(EX).length} exercices, tous sur les machines, la Smith ou les poulies de Basic-Fit.</p>
     <label class="search">${ICON.search}<input type="search" id="lib-q" placeholder="Exercice, machine ou muscle" value="${esc(libQuery)}" aria-label="Rechercher"></label>
     <div class="chips chips--scroll" role="group" aria-label="Zone de la salle">${['Tous', ...ZONES].map(z => `<button class="chip" type="button" data-zone="${z}" aria-pressed="${z === libZone}">${z}</button>`).join('')}</div>
     <div id="lib-grid" class="lib-grid"></div>`;
@@ -1126,6 +1210,13 @@ function renderProfile() {
       <label class="field"><span>Taille (cm)</span><input id="p-height" inputmode="decimal" value="${esc(p.height)}" placeholder="188"></label>
     </section>
 
+    <section class="panel form" id="variety-section">
+      <h2>Variété des exercices</h2>
+      <p class="muted small">La structure des séances reste la même. Choisis quand l'app change les exercices dans chaque famille de mouvement.</p>
+      <div class="goal-pick" role="group" aria-label="Variété des exercices">${Object.entries(VARIETY).map(([k, v]) => `
+        <button type="button" data-variety="${k}" aria-pressed="${p.variety === k}"><strong>${esc(v.label)}</strong><span>${esc(v.desc)}${k === 'cycle' ? ' Conseillé.' : ''}</span></button>`).join('')}</div>
+    </section>
+
     <section class="panel form">
       <h2>Semaine type</h2>
       <p class="muted small">Jours de salle : trois conseillés, avec un jour de repos entre deux séances.</p>
@@ -1195,6 +1286,11 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
+  $$('[data-variety]', el).forEach(b => b.onclick = () => {
+    p.variety = b.dataset.variety; resolveSessions(); save();
+    $$('[data-variety]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    toast(`Variété : ${VARIETY[p.variety].label.toLowerCase()}.`);
+  });
   $$('[data-theme-choice]', el).forEach(b => b.onclick = () => {
     p.theme = b.dataset.themeChoice; save(); applyTheme();
     $$('[data-theme-choice]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1224,15 +1320,206 @@ function renderProfile() {
       try {
         const s = JSON.parse(r.result);
         if (!s || typeof s !== 'object' || !s.profile) throw new Error();
-        state = hydrate(s); save(); applyTheme(); toast('Données importées.'); renderProfile();
+        state = hydrate(s); resolveSessions(); save(); applyTheme(); toast('Données importées.'); renderProfile();
       } catch { toast('Fichier non reconnu : choisis un export VolleyFit (.json).'); }
     };
     r.readAsText(file);
   };
   $('#reset').onclick = () => {
     if (!confirm('Effacer toutes tes mesures, séances et réglages ? Exporte-les avant si besoin.')) return;
-    state = defaults(); save(); applyTheme(); toast('Données effacées.'); renderProfile();
+    state = defaults(); resolveSessions(); save(); applyTheme(); toast('Données effacées.'); renderProfile();
   };
+}
+
+
+/* ================= Nutrition ================= */
+const OBJECTIVES = {
+  muscle: { label: 'Prise de muscle', kcal: 250, prot: 1.8, desc: 'Léger surplus calorique pour construire du muscle sans trop de gras.' },
+  recompo: { label: 'Recomposition', kcal: -250, prot: 2.0, desc: 'Perdre du gras en gagnant du muscle : léger déficit, beaucoup de protéines.' },
+  maintien: { label: 'Maintien', kcal: 0, prot: 1.6, desc: 'Garder ton poids et performer sur le terrain.' },
+  perte: { label: 'Perte de gras', kcal: -450, prot: 2.0, desc: 'Déficit modéré qui préserve tes muscles et ton énergie.' }
+};
+let mealMoment = 'tous';
+const todayKey = () => isoDate(new Date());
+function dayLog(key = todayKey()) {
+  if (!state.food[key]) state.food[key] = { entries: [], water: 0 };
+  return state.food[key];
+}
+function pruneFood() {
+  const keep = new Set(Array.from({ length: 30 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - i); return isoDate(d); }));
+  for (const k of Object.keys(state.food)) if (!keep.has(k)) delete state.food[k];
+}
+function currentWeight() {
+  const m = [...state.measures].filter(x => x.weight != null).sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+  return m ? m.weight : null;
+}
+function autoObjective() {
+  const w = currentWeight(), g = num(state.profile.goalWeight);
+  if (w && g && w > g + 1) return 'recompo';
+  return 'muscle';
+}
+function isTrainingDay(d = new Date()) {
+  const c = planWeek()[weekday(d)];
+  return !!c && c !== 'R';
+}
+function needs(trainingDay) {
+  const n = state.nutrition, w = currentWeight(), h = num(state.profile.height), age = num(n.age);
+  if (!w || !h || !age) return null;
+  const bmr = 10 * w + 6.25 * h - 5 * age + (n.sex === 'f' ? -161 : 5);
+  const sessions = state.profile.gymDays.length + (state.profile.matchDay != null ? 1 : 0);
+  const factor = sessions <= 2 ? 1.45 : sessions === 3 ? 1.55 : sessions === 4 ? 1.62 : 1.7;
+  const objKey = n.objective === 'auto' ? autoObjective() : n.objective, obj = OBJECTIVES[objKey];
+  const kcal = Math.round((bmr * factor + obj.kcal + (trainingDay ? 150 : -150)) / 10) * 10;
+  const prot = Math.round(obj.prot * w), fat = Math.round(0.9 * w);
+  const carbs = Math.max(0, Math.round((kcal - prot * 4 - fat * 9) / 4));
+  const water = Math.round((0.035 * w + (trainingDay ? 0.6 : 0)) * 10) / 10;
+  return { kcal, prot, fat, carbs, water, objKey, obj, bmr: Math.round(bmr), factor };
+}
+
+function renderNutrition() {
+  const el = $('#view-nutrition'), n = state.nutrition;
+  pruneFood();
+  const training = isTrainingDay();
+  const need = needs(training);
+  const log = dayLog();
+  const eaten = log.entries.reduce((t, e) => ({ p: t.p + e.p, kcal: t.kcal + e.kcal }), { p: 0, kcal: 0 });
+  const objKey = n.objective === 'auto' ? autoObjective() : n.objective;
+  const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
+
+  const setup = `<section class="panel form">
+      <h2>Tes infos</h2>
+      <p class="muted small">Pour calculer tes besoins, l'app utilise ton dernier poids (Progrès), ta taille (Profil) et ces deux infos.</p>
+      <div class="grid-2">
+        <label class="field"><span>Âge</span><input id="n-age" inputmode="numeric" value="${esc(n.age)}" placeholder="30"></label>
+        <div class="field"><span>Sexe</span><div class="seg" role="group" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" data-sex="${k}" aria-pressed="${n.sex === k}">${l}</button>`).join('')}</div></div>
+      </div>
+      ${!currentWeight() ? '<p class="callout">Ajoute ton poids dans Progrès pour activer le calcul.</p>' : ''}
+      ${!num(state.profile.height) ? '<p class="callout">Ajoute ta taille dans Profil pour activer le calcul.</p>' : ''}
+    </section>`;
+
+  el.innerHTML = `
+    <h1 class="page-title">Nutrition</h1>
+    ${need ? `
+    <section class="panel nutri-hero">
+      <div class="panel__head"><h2>Tes besoins aujourd'hui</h2><span class="pill">${training ? 'Jour de séance' : 'Jour de repos'}</span></div>
+      <p class="kcal"><span>${need.kcal.toLocaleString('fr-BE')}</span> kcal</p>
+      <div class="macros">
+        ${[['Protéines', need.prot, 'p'], ['Glucides', need.carbs, 'c'], ['Lipides', need.fat, 'f']].map(([l, g, k]) => `
+          <div class="macro macro--${k}"><p class="macro__g">${g} g</p><p class="macro__l">${l}</p></div>`).join('')}
+      </div>
+      <p class="muted small">Eau : environ <strong>${fmtNum(need.water)} L</strong>${training ? ', séance comprise' : ''}. ${training ? 'Plus de glucides les jours de séance et de match pour l\'énergie.' : 'Un peu moins de glucides les jours sans entraînement.'}</p>
+    </section>` : ''}
+
+    <section class="panel">
+      <h2>Ton objectif</h2>
+      <div class="goal-pick goal-pick--2">${[['auto', 'Automatique', `Choisi selon ton poids visé et ton programme : ${OBJECTIVES[autoObjective()].label.toLowerCase()}.`], ...Object.entries(OBJECTIVES).map(([k, o]) => [k, o.label, o.desc])].map(([k, l, d]) => `
+        <button type="button" data-obj="${k}" aria-pressed="${n.objective === k}"><strong>${l}</strong><span>${esc(d)}</span></button>`).join('')}</div>
+    </section>
+
+    ${setup}
+
+    <section class="panel">
+      <div class="panel__head"><h2>Aujourd'hui</h2><span class="muted small">${fmtDate(new Date().toISOString())}</span></div>
+      <div class="track">
+        <p><strong>Protéines</strong> <span>${eaten.p} ${need ? `/ ${need.prot}` : ''} g</span></p>
+        <div class="meter meter--p"><span style="width:${pct(eaten.p, need?.prot || 150)}%"></span></div>
+        <p><strong>Calories</strong> <span>${eaten.kcal.toLocaleString('fr-BE')} ${need ? `/ ${need.kcal.toLocaleString('fr-BE')}` : ''} kcal</span></p>
+        <div class="meter meter--k"><span style="width:${pct(eaten.kcal, need?.kcal || 2500)}%"></span></div>
+        <p><strong>Eau</strong> <span>${fmtNum(log.water / 1000)} ${need ? `/ ${fmtNum(need.water)}` : ''} L</span></p>
+        <div class="water">${Array.from({ length: Math.max(8, Math.ceil((need?.water || 3) / 0.25)) }, (_, i) => `<span class="${i < log.water / 250 ? 'on' : ''}"></span>`).join('')}</div>
+        <div class="btn-row"><button class="btn btn--sm" type="button" id="water-add">+ 1 verre (25 cl)</button><button class="btn btn--quiet btn--sm" type="button" id="water-rm" ${log.water ? '' : 'disabled'}>Retirer un verre</button></div>
+      </div>
+      <h3 class="sub">Ajout rapide</h3>
+      <div class="quick">${QUICK_FOODS.map((f, i) => `<button class="chip chip--food" type="button" data-qf="${i}"><strong>${esc(f.name)}</strong> ${f.p} g</button>`).join('')}</div>
+      <button class="btn btn--ghost btn--sm" type="button" id="food-custom">+ Autre aliment</button>
+      ${log.entries.length ? `<div class="list list--plain food-log">${log.entries.map(e => `
+        <div class="food-row"><span><strong>${esc(e.name)}</strong><br><span class="muted small">${e.p} g de protéines, ${e.kcal} kcal</span></span>
+        <button class="icon-btn" type="button" data-fdel="${e.id}" aria-label="Retirer ${esc(e.name)}">${ICON.trash}</button></div>`).join('')}</div>` : '<p class="empty">Rien de noté aujourd\'hui. Ajoute un aliment ou un repas des idées plus bas.</p>'}
+    </section>
+
+    <section class="panel">
+      <div class="panel__head"><h2>7 derniers jours</h2><span class="muted small">protéines</span></div>
+      ${weekProteinChart(need?.prot)}
+    </section>
+
+    <section class="panel">
+      <h2>Idées de repas</h2>
+      <div class="chips chips--scroll" role="group" aria-label="Moment">${[['tous', 'Tous'], ...Object.entries(MEAL_MOMENTS)].map(([k, l]) => `<button class="chip" type="button" data-moment="${k}" aria-pressed="${k === mealMoment}">${l}</button>`).join('')}</div>
+      <div id="meals" class="meals"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Bien manger autour du volley</h2>
+      ${[
+        ['Avant une séance', 'Un vrai repas 2 à 3 heures avant (glucides et protéines), ou une collation légère 30 à 60 minutes avant : banane, pain et beurre de cacahuète.'],
+        ['Après une séance', 'Dans les 2 heures : 25 à 40 g de protéines et des glucides pour récupérer. Un shake et une banane font l\'affaire si le repas est loin.'],
+        ['Jour de match', 'Repas riche en glucides et pauvre en gras 3 heures avant (pâtes, riz, poulet). Bois régulièrement et garde une banane pour la pause entre les sets.'],
+        ['Protéines', 'Répartis-les sur 3 à 5 prises de 25 à 40 g dans la journée : c\'est plus efficace qu\'une grosse prise le soir.'],
+        ['Hydratation', 'Bois avant d\'avoir soif. Urine claire = bien hydraté. Pense à boire pendant les matchs, surtout en salle chaude.'],
+        ['Créatine', 'Le complément le plus étudié pour la force et la masse musculaire (3 à 5 g par jour). Demande l\'avis d\'un médecin ou d\'un diététicien avant de commencer.']
+      ].map(([t, d]) => `<details class="tip"><summary>${t}</summary><p>${d}</p></details>`).join('')}
+    </section>
+    ${need ? `<p class="muted small">Calcul : métabolisme de base ${need.bmr} kcal (formule de Mifflin-St Jeor) × ${String(need.factor).replace('.', ',')} pour ton activité, ajusté pour l'objectif « ${need.obj.label.toLowerCase()} ». Ce sont des repères, pas un avis médical : pour un suivi précis, vois un diététicien du sport.</p>` : ''}`;
+
+  const drawMeals = () => {
+    const list = MEALS.filter(m => mealMoment === 'tous' || m.tags.includes(mealMoment));
+    $('#meals', el).innerHTML = list.map((m, i) => `
+      <article class="meal">
+        <div class="meal__top"><strong>${esc(m.name)}</strong><span class="meal__p">${m.p} g</span></div>
+        <p class="muted small">${esc(m.how)}</p>
+        <div class="meal__bottom"><span class="muted small">${m.kcal} kcal, ${m.tags.map(t => MEAL_MOMENTS[t].toLowerCase()).join(', ')}</span>
+        <button class="btn btn--ghost btn--sm" type="button" data-meal="${MEALS.indexOf(m)}">Ajouter</button></div>
+      </article>`).join('');
+    $$('[data-meal]', el).forEach(b => b.onclick = () => { const m = MEALS[+b.dataset.meal]; addFood(m.name, m.p, m.kcal); });
+  };
+  drawMeals();
+
+  const addFood = (name, p, kcal) => {
+    dayLog().entries.push({ id: Date.now(), name, p, kcal });
+    save(); toast(`${name} ajouté : ${p} g de protéines.`); renderNutrition();
+  };
+  $('#n-age', el).oninput = e => { n.age = num(e.target.value) ?? ''; save(); };
+  $('#n-age', el).onchange = () => renderNutrition();
+  $$('[data-sex]', el).forEach(b => b.onclick = () => { n.sex = b.dataset.sex; save(); renderNutrition(); });
+  $$('[data-obj]', el).forEach(b => b.onclick = () => { n.objective = b.dataset.obj; save(); renderNutrition(); });
+  $$('[data-moment]', el).forEach(b => b.onclick = () => {
+    mealMoment = b.dataset.moment;
+    $$('[data-moment]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    drawMeals();
+  });
+  $$('[data-qf]', el).forEach(b => b.onclick = () => { const f = QUICK_FOODS[+b.dataset.qf]; addFood(f.name, f.p, f.kcal); });
+  $$('[data-fdel]', el).forEach(b => b.onclick = () => { const l = dayLog(); l.entries = l.entries.filter(x => String(x.id) !== b.dataset.fdel); save(); renderNutrition(); });
+  $('#water-add', el).onclick = () => { dayLog().water += 250; save(); renderNutrition(); };
+  $('#water-rm', el).onclick = () => { const l = dayLog(); l.water = Math.max(0, l.water - 250); save(); renderNutrition(); };
+  $('#food-custom', el).onclick = () => {
+    const body = openSheet(`
+      <h2 class="sheet__title">Autre aliment</h2>
+      <form id="food-form" class="form">
+        <label class="field"><span>Nom</span><input name="name" required placeholder="Ex. : sandwich poulet"></label>
+        <div class="grid-2">
+          <label class="field"><span>Protéines (g)</span><input name="p" inputmode="numeric" required placeholder="25"></label>
+          <label class="field"><span>Calories (kcal)</span><input name="kcal" inputmode="numeric" placeholder="400"></label>
+        </div>
+        <button class="btn btn--block" type="submit">Ajouter à aujourd'hui</button>
+      </form>`, { label: 'Autre aliment' });
+    $('#food-form', body).onsubmit = ev => {
+      ev.preventDefault();
+      const f = new FormData(ev.target);
+      const name = String(f.get('name')).trim(), p = Math.round(num(f.get('p')) || 0), kcal = Math.round(num(f.get('kcal')) || 0);
+      if (!name) return;
+      closeSheet(); addFood(name, p, kcal);
+    };
+  };
+}
+
+function weekProteinChart(goal) {
+  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d; });
+  const vals = days.map(d => (state.food[isoDate(d)]?.entries || []).reduce((t, e) => t + e.p, 0));
+  const max = Math.max(goal || 0, ...vals, 50);
+  return `<div class="bars">${days.map((d, i) => `
+    <div class="bars__col"><div class="bars__track">${goal ? `<span class="bars__goal" style="bottom:${goal / max * 100}%"></span>` : ''}<span class="bars__fill ${goal && vals[i] >= goal ? 'ok' : ''}" style="height:${vals[i] / max * 100}%"></span></div>
+    <span class="bars__v">${vals[i] || ''}</span><span class="bars__d">${DAYS_SHORT[weekday(d)]}</span></div>`).join('')}</div>
+    ${goal ? '<p class="muted small">Le trait marque ton objectif de protéines. En menthe : objectif atteint.</p>' : ''}`;
 }
 
 /* ================= Divers ================= */
@@ -1245,7 +1532,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '10';
+const APP_VERSION = '11';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

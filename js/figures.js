@@ -146,7 +146,7 @@ const FIG = (() => {
     let s = '';
     if (f.bar) s += circ([J.sh[0] - 7, J.sh[1] + 3], 11, 'plate');
     if (f.seat) s += `<rect class="eq" x="${f1(J.hip[0] - 13)}" y="${f1(J.hip[1] + 4)}" width="26" height="6" rx="3"/>`;
-    if (f.cable) s += ln(f.cable, J.w0, 'cable') + circ(f.cable, 4, 'pad');
+    if (f.cable) s += ln(f.cable, J[f.cableTo || 'w0'], 'cable') + circ(f.cable, 4, 'pad');
     if (f.lever) s += ln(f.lever.p, J[f.lever.j], 'lever');
     return s;
   }
@@ -481,8 +481,82 @@ const FIG = (() => {
   };
   for (const [k, v] of Object.entries(LABELS)) if (DEFS[k]) DEFS[k].labels = v.filter(x => x[2]);
 
+
+  /* ---------- exercices de masse musculaire ---------- */
+  const BENCH = [['r', 26, 118, 104, 8, 3], ['l', 40, 126, 40, 140, 4], ['l', 116, 126, 116, 140, 4]];
+  DEFS['smith-bench'] = D(
+    { hip: [100, 112], t: -90, a: [-28, 172, -30, 170], feet: [[134, 137], [130, 137]] },
+    { a: [180, 180, 178, 178] },
+    { bg: [...SMITH, ...BENCH], hand: 'bar', view: 'side' });
+  DEFS['smith-incline'] = { ...DEFS['dev-incline'], bg: [...SMITH, ...DEFS['dev-incline'].bg], hand: 'bar' };
+  DEFS['shoulder-press'] = D(
+    { hip: [80, 100], t: 182, a: [-24, 172, -26, 170], l: [80, 0, 78, 0] },
+    { a: [176, 178, 174, 176] },
+    { bg: [['r', 64, 104, 36, 7, 3], ['l', 64, 104, 60, 36, 8], ['l', 82, 111, 82, 140, 5]], hand: 'grip' });
+  DEFS['lateral-raise'] = D(
+    { hip: [100, 73], t: 180, a: [12, 8, -12, -8], l: [6, 0, -6, 0], f: [90, -90] },
+    { a: [82, 88, -82, -88] },
+    { bg: [['l', 20, 20, 20, 140, 6]], cable: [20, 132], hand: 'grip', view: 'front' });
+  DEFS['biceps-curl'] = D(
+    { hip: [96, 73], t: 182, a: [4, 4, 2, 2], feet: [[106, 137], [92, 137]] },
+    { a: [4, 160, 2, 158] },
+    { bg: [['l', 168, 20, 168, 140, 6]], cable: [168, 130], hand: 'grip' });
+  DEFS['biceps-machine'] = D(
+    { hip: [74, 104], t: 176, a: [48, 60, 46, 58], l: [80, 0, 78, 0] },
+    { a: [48, 172, 46, 170] },
+    { bg: [['r', 58, 108, 34, 7, 3], ['l', 78, 115, 78, 140, 5], ['l', 82, 64, 102, 84, 9], ['l', 102, 84, 102, 140, 4]], hand: 'grip' });
+  DEFS['triceps-pushdown'] = D(
+    { hip: [96, 73], t: 176, a: [2, 150, 0, 148], feet: [[106, 137], [92, 137]] },
+    { a: [6, 6, 4, 4] },
+    { bg: [['l', 150, 10, 150, 140, 6]], cable: [150, 18], hand: 'grip' });
+  DEFS['triceps-overhead'] = D(
+    { hip: [100, 88], t: 162, a: [150, 320, 148, 318], feet: [[126, 137], [86, 137]] },
+    { a: [150, 156, 148, 154] },
+    { bg: [['l', 26, 10, 26, 140, 6]], cable: [26, 118], hand: 'grip' });
+  DEFS['dips-assist'] = D(
+    { hip: [96, 96], t: 172, hands: [[110, 96], [108, 97]], l: [6, -82, 4, -84] },
+    { hip: [96, 76], t: 178 },
+    { bg: [['l', 104, 102, 140, 102, 5], ['l', 140, 20, 140, 140, 6], ['l', 50, 140, 70, 120, 4]], hand: 'grip' });
+  DEFS['traction-assist'] = D(
+    { hip: [98, 106], t: 180, hands: [[106, 14], [104, 15]], l: [4, -84, 2, -86] },
+    { hip: [98, 72] },
+    { bg: [['l', 70, 12, 150, 12, 4], ['l', 150, 12, 150, 140, 6]], hand: 'grip' });
+  DEFS['leg-ext-reps'] = { ...DEFS['leg-ext'], hold: false, dur: 3200 };
+  DEFS.kickback = D(
+    { hip: [96, 76], t: 150, hands: [[136, 52], [134, 54]], l: [8, 0, 0, 0] },
+    { l: [-48, -30, 0, 0] },
+    { bg: [['l', 142, 30, 142, 140, 6]], cable: [140, 132], cableTo: 'a0' });
+
+  function flyTop(u, cable, tr) {
+    const L = 60, aL = 175 - 100 * u, aR = 180 - aL;
+    const sL = [68, 64], sR = [132, 64], hL = polar(sL, aL, L), hR = polar(sR, aR, L);
+    const pl = [10, 46], pr = [190, 46];
+    return `${tr ? arcPath(sL, L, 175, 78) + arcPath(sR, L, 5, 102) : ''}
+      ${cable ? `<circle class="eq" cx="${pl[0]}" cy="${pl[1]}" r="8"/><circle class="eq" cx="${pr[0]}" cy="${pr[1]}" r="8"/>${ln(pl, hL, 'cable')}${ln(pr, hR, 'cable')}${tr ? T_(10, 32, 'poulie', 'start') + T_(190, 32, 'poulie', 'end') : ''}`
+        : `<rect class="eq" x="62" y="44" width="76" height="9" rx="4"/>${tr ? T_(100, 38, 'dossier', 'middle') : ''}`}
+      ${torsoTop(100, 64)}
+      ${seg(sL, hL, 'far-l act')}${seg(sR, hR, 'near-l act')}
+      <circle class="pad" cx="${f1(hL[0])}" cy="${f1(hL[1])}" r="5"/><circle class="pad" cx="${f1(hR[0])}" cy="${f1(hR[1])}" r="5"/>`;
+  }
+  DEFS['pec-deck'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, false, tr) };
+  DEFS['cable-fly'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, true, tr) };
+
   const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
   const HINTS = {
+    'smith-bench': "Vue de côté, allongé sur le banc. La barre guidée descend vers le bas des pectoraux puis remonte bras presque tendus.",
+    'smith-incline': "Vue de côté, banc incliné. La barre descend vers le haut de la poitrine.",
+    'pec-deck': "Vue de dessus, dos contre le dossier. Les bras se referment devant la poitrine comme pour un gros câlin.",
+    'cable-fly': "Vue de dessus, debout entre les deux poulies. Les mains se rejoignent devant la poitrine, coudes légèrement fléchis.",
+    'shoulder-press': "Vue de côté, assis. Les poignées montent de la hauteur des oreilles jusqu'au-dessus de la tête.",
+    'lateral-raise': "Vue de face. Le bras monte sur le côté jusqu'à hauteur d'épaule, pas plus haut.",
+    'biceps-curl': "Vue de côté. Les coudes restent collés au corps, seuls les avant-bras montent.",
+    'biceps-machine': "Vue de côté, bras posés sur le pupitre. Les avant-bras montent vers les épaules.",
+    'triceps-pushdown': "Vue de côté. Les coudes restent collés au corps, les avant-bras poussent vers le bas.",
+    'triceps-overhead': "Vue de côté, dos à la poulie. Les coudes restent en haut, les avant-bras se tendent vers l'avant.",
+    'dips-assist': "Vue de côté, genoux sur la plateforme. Le corps descend entre les poignées puis remonte bras tendus.",
+    'traction-assist': "Vue de côté, genoux sur la plateforme. Tu tires jusqu'à ce que le menton passe la barre.",
+    'leg-ext-reps': "Vue de côté, assis. La jambe se tend complètement puis redescend lentement.",
+    kickback: "Vue de côté. La jambe avec la sangle part vers l'arrière, le dos reste droit.",
     'rotation-externe': "Vue de dessus : tu regardes vers le bas de l'image. Le coude reste collé au corps, seul l'avant-bras pivote vers l'extérieur, comme une porte qui s'ouvre.",
     pallof: "Vue de dessus. La poulie tire sur le côté : tu pousses les mains droit devant toi sans laisser le buste tourner vers la poulie.",
     'reverse-fly': "Vue de dessus, poitrine contre le coussin. Les bras tendus s'ouvrent sur les côtés jusqu'à l'alignement des épaules.",

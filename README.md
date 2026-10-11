@@ -28,6 +28,23 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Annulation facile** d'une séance démarrée par erreur : bouton « Annuler » juste après le démarrage, et croix en haut de la séance.
 - **Hors-ligne et installable**, données stockées uniquement sur ton appareil (export et import JSON).
 
+## Exercices variés mais maîtrisés
+
+Chaque séance garde la même structure : des **familles de mouvements** (poussée horizontale, tirage vertical, ischios, biceps…). Dans chaque famille, l'app choisit un exercice parmi les variantes sur machines :
+- même tirage tant que la période ne change pas, pour pouvoir progresser sur les charges ;
+- jamais le même exercice deux fois de suite, jamais deux fois le même dans la semaine ;
+- exercices de prévention volley toujours présents (coiffe des rotateurs, tendon rotulien) ;
+- réglage dans Profil : nouveaux exercices à chaque cycle de 4 semaines (conseillé), à chaque séance, ou jamais ;
+- bouton « Autres exercices » pour refaire le tirage d'une séance.
+
+La structure et les familles se modifient dans `TEMPLATE`, dans `js/data.js`.
+
+## Nutrition
+
+- Besoins du jour (calories, protéines, glucides, lipides, eau) calculés avec la formule de Mifflin-St Jeor, ajustés aux jours de séance et à l'objectif (prise de muscle, recomposition, maintien, perte de gras).
+- Suivi du jour : protéines, calories et verres d'eau, ajout rapide d'aliments, historique des protéines sur 7 jours.
+- Idées de repas par moment (petit-déj, avant et après séance, avant match…) et conseils autour du volley.
+
 ## Mise en ligne avec GitHub Pages
 
 1. Pousse le code sur la branche `main`.
