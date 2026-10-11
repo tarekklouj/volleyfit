@@ -22,7 +22,7 @@ const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const DAYS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-const ZONES = ['Machines', 'Poids libres', 'Poulie', 'Zone fonctionnelle', 'Sol', 'Cardio'];
+const ZONES = ['Machines', 'Smith machine', 'Poulie', 'Cardio', 'Étirements'];
 const METRICS = {
   weight: { label: 'Poids', unit: 'kg' },
   fat: { label: 'Masse grasse', unit: '%' },
@@ -31,6 +31,18 @@ const METRICS = {
   water: { label: 'Eau corporelle', unit: '%' }
 };
 const EX = EXERCISES;
+const muscleNames = keys => (keys || []).map(k => MUSCLES[k]).filter(Boolean);
+const primaryText = e => muscleNames(e.target?.p).join(', ');
+function musclesHTML(e) {
+  const p = muscleNames(e.target?.p), sec = muscleNames(e.target?.s);
+  return `<div class="muscles">
+    ${FIG.muscles(e.target, 'Muscles ciblés : ' + p.join(', '))}
+    <div class="muscles__legend">
+      <p><span class="dot dot--p"></span><strong>Principaux</strong><br>${p.join(', ') || '–'}</p>
+      ${sec.length ? `<p><span class="dot dot--s"></span><strong>Secondaires</strong><br>${sec.join(', ')}</p>` : ''}
+    </div>
+  </div>`;
+}
 
 const ICON = {
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -41,14 +53,16 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
   trophy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 01-8 0zM8 6H4v1a4 4 0 004 4M16 6h4v1a4 4 0 01-4 4M12 13v4M8 20h8M10 17h4"/></svg>',
-  search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>'
+  search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>'
 };
 
 /* ================= Données ================= */
 const STORE = 'volleyfit-v2';
 const defaults = () => ({
   profile: {
-    name: '', height: '', position: 'polyvalent', gymDays: [0, 2, 4], matchDay: null,
+    name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
     goalWeight: '', goalFat: '', sound: true, vibrate: true
   },
@@ -57,7 +71,11 @@ const defaults = () => ({
 
 function hydrate(s) {
   const d = defaults();
-  return { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: s.swaps || {} };
+  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {} };
+  delete out.profile.position;
+  for (const [k, v] of Object.entries(s.swaps || {})) if (EXERCISES[v]) out.swaps[k] = v;
+  if (out.active && (!out.active.items || out.active.items.some(it => !EXERCISES[it.ex]))) out.active = null;
+  return out;
 }
 function loadState() {
   try {
@@ -145,7 +163,7 @@ function e1rm(s) {
   if (!kg || !r) return 0;
   return r === 1 ? kg : kg * (1 + r / 30);
 }
-const setValue = (exId, s) => EX[exId].type === 'hold' ? (num(s.sec) || 0) : (EX[exId].loaded ? e1rm(s) : (num(s.reps) || 0));
+const setValue = (exId, s) => !EX[exId] ? 0 : EX[exId].type === 'hold' ? (num(s.sec) || 0) : (EX[exId].loaded ? e1rm(s) : (num(s.reps) || 0));
 function lastSetsFor(exId) {
   for (const h of state.history) {
     const it = (h.items || []).find(x => x.ex === exId && (x.sets || []).some(s => s.done));
@@ -166,7 +184,7 @@ function bestFor(exId, history = state.history) {
   return best;
 }
 function setText(exId, s) {
-  const e = EX[exId];
+  const e = EX[exId] || { type: s.sec ? 'hold' : 'reps', loaded: !!s.kg };
   if (e.type === 'hold') return `${s.kg ? fmtKg(num(s.kg)) + ' kg, ' : ''}${s.sec} s`;
   return e.loaded && num(s.kg) ? `${fmtKg(num(s.kg))} kg × ${s.reps}` : `${s.reps} répétitions`;
 }
@@ -241,21 +259,40 @@ function exThumb(id, cls = '') {
 }
 function openExercise(id) {
   const e = EX[id], best = bestFor(id);
-  let stop = () => {};
+  let anim = { stop() {} };
   const body = openSheet(`
-    <div class="sheet-fig" id="anim-fig"></div>
+    <div class="anim">
+      <div class="sheet-fig" id="anim-fig"></div>
+      <div class="anim__bar">
+        <span class="anim__phase" id="anim-phase" aria-live="polite">Départ</span>
+        <div class="seg seg--sm" role="group" aria-label="Lecture">
+          <button type="button" data-anim="play" aria-pressed="true" aria-label="Lecture">${ICON.play}</button>
+          <button type="button" data-anim="start" aria-pressed="false">Départ</button>
+          <button type="button" data-anim="end" aria-pressed="false">Arrivée</button>
+        </div>
+        <button class="chip chip--sm" type="button" id="anim-speed" aria-pressed="false">Lent</button>
+      </div>
+      <p class="small muted">En orange, ce qui bouge. En pointillés, le trajet du mouvement. La silhouette pâle montre la position de départ.</p>
+    </div>
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
-    <p class="muted">Muscles : ${esc(e.muscles)}</p>
+    <h3 class="sub">Muscles ciblés</h3>
+    ${musclesHTML(e)}
     <h3 class="sub">Comment faire</h3>
-    <ol class="steps">${e.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <ol class="steps">${e.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
     <p class="callout callout--warn"><strong>Erreur fréquente.</strong> ${esc(e.mistake)}</p>
     <p class="callout"><strong>Pour le volley.</strong> ${esc(e.why)}</p>
     ${best ? `<p class="record">${ICON.trophy}<span>Ton record : <strong>${setText(id, best.s)}</strong>, le ${fmtDate(best.date)}</span></p>` : ''}
     ${e.alt?.length ? `<h3 class="sub">Si la machine est prise ou absente</h3>
       <div class="list">${e.alt.map(a => `<button class="row" type="button" data-ex="${a}">${exThumb(a, 'thumb--sm')}<span><strong>${esc(EX[a].name)}</strong><br><span class="muted small">${esc(EX[a].equip)}</span></span></button>`).join('')}</div>` : ''}
-  `, { label: e.name, onClose: () => stop() });
-  stop = FIG.mount($('#anim-fig'), e.fig, 'Animation : ' + e.name);
+  `, { label: e.name, onClose: () => anim.stop() });
+  anim = FIG.mount($('#anim-fig'), e.fig, { label: 'Animation : ' + e.name, onPhase: t => { const el = $('#anim-phase'); if (el) el.textContent = t; } });
+  $$('[data-anim]', body).forEach(b => b.onclick = () => {
+    anim.set(b.dataset.anim);
+    $$('[data-anim]', body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (b.dataset.anim !== 'play') $('#anim-phase').textContent = b.dataset.anim === 'start' ? 'Position de départ' : 'Position d\'arrivée';
+  });
+  $('#anim-speed', body).onclick = e2 => e2.currentTarget.setAttribute('aria-pressed', String(anim.speed()));
   $$('[data-ex]', body).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
 }
 
@@ -308,7 +345,6 @@ function renderToday() {
   }
 
   const goal = weeklyGoal(), done = weekCount(weekStart(now)), st = streak();
-  const pos = POSITIONS[p.position] || POSITIONS.polyvalent;
   const last = state.history[0];
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const month = sessionsBetween(monthStart, new Date(now.getFullYear(), now.getMonth() + 1, 1));
@@ -320,7 +356,7 @@ function renderToday() {
       <div class="panel__head"><h2>Ta semaine</h2><span class="muted small">${done} sur ${goal}</span></div>
       <div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>
       ${weekStrip(plan, wd)}
-      <p class="legend">A jambes, B épaules, C explosivité, R récupération.</p>
+      <p class="legend">A jambes, B épaules, C puissance et gainage, R récupération.</p>
     </section>
     <section class="stats3">
       <div class="stat"><p class="stat__value">${st}</p><p class="stat__label">${st > 1 ? 'semaines' : 'semaine'} d'affilée à l'objectif</p></div>
@@ -331,7 +367,6 @@ function renderToday() {
       <span class="tag" style="--sess:${SESSIONS[last.code]?.color}">${esc(last.code)}</span>
       <span><strong>Dernière séance : ${esc(last.name)}</strong><br><span class="muted small">${fmtDate(last.date)}, ${last.minutes} min, ${fmtVolume(last.volume || 0)}${last.prs?.length ? `, ${plural(last.prs.length, 'record')}` : ''}</span></span>
     </button>` : ''}
-    <p class="callout"><strong>${esc(pos.label)}.</strong> ${esc(pos.tip)}</p>
     <section class="panel">
       <h2>Faire une autre séance</h2>
       <div class="sess-grid">${Object.entries(SESSIONS).map(([k, s]) =>
@@ -347,7 +382,7 @@ function buildItems(code) {
   const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: p.warmupMin, sets: [{ done: false }] }];
   fit.plan.forEach(it => {
     const slot = it.slot;
-    const exId = state.swaps[`${code}:${slot}`] || it.ex;
+    const exId = EX[state.swaps[`${code}:${slot}`]] ? state.swaps[`${code}:${slot}`] : it.ex;
     if (it.duration) { items.push({ ex: exId, slot, kind: 'time', minutes: it.duration, sets: [{ done: false }] }); return; }
     items.push({
       ex: exId, slot, kind: it.hold ? 'hold' : 'reps', reps: it.reps, hold: it.hold, perSide: it.perSide, rest: it.rest,
@@ -401,7 +436,7 @@ function itemHTML(it, i) {
     <div class="wx__title">
       <h3>${esc(e.name)}</h3>
       <p class="wx__target">${it.kind === 'warmup' ? 'Échauffement, ' : it.cooldown ? 'Retour au calme, ' : ''}${targetText(it)}</p>
-      <p class="wx__equip">${esc(e.equip)}</p>
+      <p class="wx__equip">${esc(e.equip)}${primaryText(e) ? ` <span class="wx__muscles">${esc(primaryText(e))}</span>` : ''}</p>
     </div>
     ${canSwap ? `<button class="icon-btn" type="button" data-swap="${i}" aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
   </div>`;
@@ -664,20 +699,20 @@ function renderLibrary() {
   const el = $('#view-library');
   el.innerHTML = `
     <h1 class="page-title">Exercices</h1>
-    <label class="search">${ICON.search}<input type="search" id="lib-q" placeholder="Rechercher un exercice ou une machine" value="${esc(libQuery)}" aria-label="Rechercher"></label>
+    <label class="search">${ICON.search}<input type="search" id="lib-q" placeholder="Exercice, machine ou muscle" value="${esc(libQuery)}" aria-label="Rechercher"></label>
     <div class="chips chips--scroll" role="group" aria-label="Zone de la salle">${['Tous', ...ZONES].map(z => `<button class="chip" type="button" data-zone="${z}" aria-pressed="${z === libZone}">${z}</button>`).join('')}</div>
     <div id="lib-grid" class="lib-grid"></div>`;
   const draw = () => {
     const q = libQuery.trim().toLowerCase();
     const list = Object.entries(EX).filter(([, e]) =>
       (libZone === 'Tous' || e.zone === libZone) &&
-      (!q || `${e.name} ${e.equip} ${e.muscles}`.toLowerCase().includes(q)));
+      (!q || `${e.name} ${e.equip} ${muscleNames([...(e.target?.p || []), ...(e.target?.s || [])]).join(' ')}`.toLowerCase().includes(q)));
     $('#lib-grid').innerHTML = list.length ? list.map(([id, e]) => `
       <button class="lib-card" type="button" data-ex="${id}">
         ${exThumb(id)}
         <strong>${esc(e.name)}</strong>
-        <span class="muted small">${esc(e.muscles)}</span>
-      </button>`).join('') : '<p class="empty">Aucun exercice ne correspond. Essaie un autre mot, par exemple « poulie » ou « épaules ».</p>';
+        <span class="muted small">${esc(primaryText(e))}</span>
+      </button>`).join('') : '<p class="empty">Aucun exercice ne correspond. Essaie un autre mot, par exemple « poulie » ou « fessiers ».</p>';
     $$('[data-ex]', $('#lib-grid')).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
   };
   draw();
@@ -718,7 +753,41 @@ function bmi(m) {
   const h = num(m.height) ?? num(state.profile.height);
   return m.weight == null || !h ? null : m.weight / ((h / 100) ** 2);
 }
-const bmiLabel = b => b == null ? '' : b < 18.5 ? 'insuffisant' : b < 25 ? 'normal' : b < 30 ? 'surpoids' : 'obésité';
+const BMI_ZONES = [
+  { label: 'Insuffisance pondérale', from: 15, to: 18.5 },
+  { label: 'Corpulence normale', from: 18.5, to: 25 },
+  { label: 'Surpoids', from: 25, to: 30 },
+  { label: 'Obésité', from: 30, to: 40 }
+];
+function bmiZone(b) { return b < 18.5 ? 0 : b < 25 ? 1 : b < 30 ? 2 : 3; }
+function bmiPos(b) {
+  const z = BMI_ZONES[bmiZone(b)], i = bmiZone(b);
+  const t = Math.max(0, Math.min(1, (b - z.from) / (z.to - z.from)));
+  return Math.max(2, Math.min(98, (i + t) * 25));
+}
+function bmiCard(b) {
+  if (b == null) return `<section class="panel bmi">
+      <div class="panel__head"><h2>Mon IMC</h2><button class="icon-btn" type="button" id="bmi-info" aria-label="Comprendre l'IMC">${ICON.arrow}</button></div>
+      <p class="muted">Ajoute ton poids et ta taille pour calculer ton IMC.</p></section>`;
+  const z = bmiZone(b);
+  return `<section class="panel bmi">
+    <div class="panel__head"><h2>Mon IMC</h2><button class="icon-btn" type="button" id="bmi-info" aria-label="Comprendre l'IMC">${ICON.arrow}</button></div>
+    <p class="bmi__value">${fmtNum(+b.toFixed(1))}</p>
+    <p>D'après ton poids et ta taille</p>
+    <div class="bmi__scale" role="img" aria-label="IMC ${fmtNum(+b.toFixed(1))}, ${BMI_ZONES[z].label.toLowerCase()}">
+      <span class="bmi__tick" style="left:25%"></span><span class="bmi__tick" style="left:50%"></span><span class="bmi__tick" style="left:75%"></span>
+      <span class="bmi__dot" style="left:${bmiPos(b)}%"></span>
+    </div>
+    <div class="bmi__labels">${BMI_ZONES.map((x, i) => `<span class="${i === z ? 'on' : ''}">${x.label}</span>`).join('')}</div>
+  </section>`;
+}
+function openBmiInfo() {
+  openSheet(`
+    <h2 class="sheet__title">Comprendre l'IMC</h2>
+    <p>L'indice de masse corporelle se calcule ainsi : poids en kg divisé par la taille en mètres au carré. Par exemple, 82 kg pour 1,82 m donne 82 ÷ (1,82 × 1,82) = 24,8.</p>
+    <div class="list list--plain">${BMI_ZONES.map((x, i) => `<p class="bmi-row"><strong>${x.label}</strong><span class="muted">${i === 0 ? 'moins de 18,5' : i === 3 ? '30 et plus' : `${fmtNum(x.from)} à ${fmtNum(+(x.to - 0.1).toFixed(1))}`}</span></p>`).join('')}</div>
+    <p class="callout">L'IMC ne distingue pas le muscle de la graisse. Chez un sportif musclé, il surestime souvent la corpulence : suis aussi ta masse grasse et ton tour de taille.</p>`, { label: "Comprendre l'IMC" });
+}
 function deltaHTML(key) {
   const s = seriesOf(key);
   if (s.length < 2) return '';
@@ -757,10 +826,10 @@ function renderBody(el) {
   const b = lastW ? bmi(lastW) : null, p = state.profile;
   const goals = goalHTML('weight', p.goalWeight, 'kg', 'Poids') + goalHTML('fat', p.goalFat, '%', 'Masse grasse');
   el.innerHTML = `
-    <section class="stats3">
+    ${bmiCard(b)}
+    <section class="stats2">
       <div class="stat"><p class="stat__value">${lastW ? fmtNum(lastW.weight) : '–'}</p><p class="stat__label">kg<br>${deltaHTML('weight')}</p></div>
       <div class="stat"><p class="stat__value">${lastF ? fmtNum(lastF.fat) : '–'}</p><p class="stat__label">% masse grasse<br>${deltaHTML('fat')}</p></div>
-      <div class="stat"><p class="stat__value">${b ? fmtNum(+b.toFixed(1)) : '–'}</p><p class="stat__label">IMC ${bmiLabel(b)}</p></div>
     </section>
     <button class="btn btn--block" type="button" id="add-measure">Ajouter une mesure</button>
     ${goals ? `<section class="panel">${goals}</section>` : `<p class="muted small">Fixe un objectif de poids ou de masse grasse dans Profil pour suivre ta progression.</p>`}
@@ -781,9 +850,10 @@ function renderBody(el) {
           <button class="icon-btn" type="button" data-del="${m.id}" aria-label="Supprimer la mesure du ${fmtDateTime(m.date)}">${ICON.trash}</button>
         </div>`).join('') : '<p class="empty">Aucune mesure pour l\'instant. Pèse-toi le matin à jeun, dans les mêmes conditions, pour comparer d\'une semaine à l\'autre.</p>'}
     </section>
-    <p class="muted small">L'IMC surestime la corpulence des sportifs musclés : fie-toi surtout à la masse grasse et au tour de taille.</p>`;
+`;
 
   $('#add-measure').onclick = openMeasureForm;
+  $('#bmi-info')?.addEventListener('click', openBmiInfo);
   $$('[data-metric]', el).forEach(btn => btn.onclick = () => {
     chartMetric = btn.dataset.metric;
     $$('[data-metric]', el).forEach(x => x.setAttribute('aria-pressed', String(x === btn)));
@@ -910,7 +980,7 @@ function openSession(id) {
       const done = (it.sets || []).filter(s => s.done);
       if (!done.length) return '';
       const isPR = h.prs?.includes(it.ex);
-      const detail = it.kind === 'warmup' || it.kind === 'time' ? `${it.minutes} min` : done.map(s => setText(it.ex, s)).join(', ');
+      const detail = it.kind === 'warmup' || it.kind === 'time' ? `${it.minutes} min` : done.map(x => setText(it.ex, x)).join(', ');
       return `<p class="hist-ex"><strong>${esc(EX[it.ex]?.name || it.ex)}</strong>${isPR ? ` <span class="pill pill--sm">${ICON.trophy} record</span>` : ''}<br><span class="muted">${detail}</span></p>`;
     }).join('')}
     ${h.rpe ? `<p>Ressenti : <strong>${esc(h.rpe)}/10</strong></p>` : ''}
@@ -930,10 +1000,7 @@ function renderProfile() {
     <h1 class="page-title">Profil</h1>
     <section class="panel form">
       <label class="field"><span>Prénom</span><input id="p-name" value="${esc(p.name)}" autocomplete="given-name"></label>
-      <div class="grid-2">
-        <label class="field"><span>Taille (cm)</span><input id="p-height" inputmode="decimal" value="${esc(p.height)}" placeholder="188"></label>
-        <label class="field"><span>Poste</span><select id="p-position">${Object.entries(POSITIONS).map(([k, v]) => `<option value="${k}" ${k === p.position ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></label>
-      </div>
+      <label class="field"><span>Taille (cm)</span><input id="p-height" inputmode="decimal" value="${esc(p.height)}" placeholder="188"></label>
     </section>
 
     <section class="panel form">
@@ -956,7 +1023,7 @@ function renderProfile() {
       <label class="field"><span>Machine</span>
         <select id="p-wmachine"><option value="auto" ${p.warmupMachine === 'auto' ? 'selected' : ''}>Selon la séance (conseillé)</option>${WARMUP_MACHINES.map(m => `<option value="${m}" ${p.warmupMachine === m ? 'selected' : ''}>${esc(EX[m].name)}</option>`).join('')}</select>
       </label>
-      <p class="muted small">Selon la séance : vélo avant les jambes, tapis avant les épaules, rameur avant l'explosivité. Le reste de la séance s'ajuste pour que le total reste entre 50 et 70 minutes.</p>
+      <p class="muted small">Selon la séance : vélo avant les jambes, tapis avant les épaules, rameur avant la séance puissance et gainage. Le reste de la séance s'ajuste pour que le total reste entre 50 et 70 minutes.</p>
     </section>
 
     <section class="panel form">
@@ -990,7 +1057,6 @@ function renderProfile() {
   preview();
   $('#p-name').oninput = e => { p.name = e.target.value.trim(); save(); };
   $('#p-height').oninput = e => { p.height = num(e.target.value) ?? ''; save(); };
-  $('#p-position').onchange = e => { p.position = e.target.value; save(); };
   $('#p-match').onchange = e => { p.matchDay = e.target.value === '' ? null : +e.target.value; save(); preview(); };
   $('#p-cycle').onchange = e => { if (e.target.value) { p.cycleStart = e.target.value; save(); renderProfile(); } };
   $('#p-wmachine').onchange = e => { p.warmupMachine = e.target.value; save(); };

@@ -14,6 +14,10 @@
   --eq: #D3D9E3;
   --eq-dark: #7C879E;
   --thumb: #E6EBF3;
+  --accent: #E8652A;
+  --accent-soft: #F6C1A6;
+  --body-base: #E3E8F0;
+  --muscle: #C7CFDC;
   --radius-lg: 20px;
   --radius: 14px;
   --radius-sm: 10px;
@@ -29,13 +33,13 @@ html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   :root:not([data-theme="light"]) {
     --bg: #0E1524; --surface: #172137; --surface-2: #1D2942; --ink: #E7ECF6; --muted: #9AA6BF;
     --line: #2A3652; --court: #7096F2; --fig-far: #5E6B88; --eq: #2E3A57; --eq-dark: #6B7896; --thumb: #1F2B45;
-    --good: #5BC28B; --danger: #F2847C;
+    --good: #5BC28B; --danger: #F2847C; --accent: #F07B43; --accent-soft: #7A4330; --body-base: #243150; --muscle: #34425F;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0E1524; --surface: #172137; --surface-2: #1D2942; --ink: #E7ECF6; --muted: #9AA6BF;
   --line: #2A3652; --court: #7096F2; --fig-far: #5E6B88; --eq: #2E3A57; --eq-dark: #6B7896; --thumb: #1F2B45;
-  --good: #5BC28B; --danger: #F2847C;
+  --good: #5BC28B; --danger: #F2847C; --accent: #F07B43; --accent-soft: #7A4330; --body-base: #243150; --muscle: #34425F;
 }
 *, *::before, *::after { box-sizing: inherit; }
 [hidden] { display: none !important; }
@@ -194,6 +198,44 @@ p { margin: 0; }
 .fig .cable { stroke: var(--muted); stroke-width: 1.5; }
 .fig .lever { stroke: var(--eq-dark); stroke-width: 6; stroke-linecap: round; }
 .thumb .fig .ground { stroke-width: 3; }
+.fig .near .act { stroke: var(--accent); }
+.fig .far .act { stroke: var(--accent-soft); }
+.fig .ghost .limb, .fig .ghost .head { stroke: var(--fig-far); fill: var(--fig-far); }
+.fig .trail { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 4; opacity: .75; }
+.fig .trail-head { fill: var(--accent); opacity: .85; }
+
+/* Animation dans la fiche */
+.anim__bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.anim__phase { flex: 1 1 100%; font: 800 1.35rem var(--display); color: var(--accent); }
+.seg--sm { padding: 3px; }
+.seg--sm button { min-height: 36px; padding: 0 12px; font-size: .9rem; display: inline-flex; align-items: center; justify-content: center; }
+.seg--sm button svg { width: 16px; height: 16px; fill: currentColor; }
+.chip--sm { min-height: 36px; padding: 0 12px; font-size: .9rem; }
+
+/* Carte des muscles */
+.muscles { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; align-items: center; background: var(--surface-2); border-radius: var(--radius); padding: 12px; }
+.musclemap { width: 100%; height: auto; display: block; }
+.musclemap .mm-base * { fill: var(--body-base); }
+.musclemap .mm-n { fill: var(--muscle); }
+.musclemap .mm-p { fill: var(--accent); }
+.musclemap .mm-s { fill: var(--accent-soft); }
+.musclemap text { font: 600 10px var(--body); fill: var(--muted); }
+.muscles__legend { display: grid; gap: 10px; font-size: .92rem; line-height: 1.35; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.dot--p { background: var(--accent); }
+.dot--s { background: var(--accent-soft); }
+.wx__muscles { color: var(--accent); font-weight: 500; }
+.wx__muscles::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin: 0 4px 2px 6px; }
+
+/* IMC */
+.bmi__value { font: 800 4rem/1 var(--display); margin-top: 6px; }
+.bmi__scale { position: relative; height: 8px; border-radius: 4px; background: var(--accent); margin: 28px 2px 0; }
+.bmi__tick { position: absolute; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--surface); }
+.bmi__dot { position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--surface); transition: left .4s; }
+.bmi__labels { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; font-size: .88rem; line-height: 1.25; margin-top: 14px; }
+.bmi__labels .on { color: var(--accent); font-weight: 700; }
+.bmi-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.stats2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 /* Séance en cours */
 .wk-head { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding: 8px 0 10px; margin: -8px 0 0; }

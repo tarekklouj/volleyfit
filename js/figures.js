@@ -45,16 +45,8 @@ const FIG = (() => {
   }
   const smooth = x => x * x * (3 - 2 * x);
 
-  function poseAt(f, phase) {
-    if (f.crank) {
-      const th = phase * 2 * Math.PI, [cx, cy] = f.crank.c, [rx, ry] = f.crank.r;
-      const p = JSON.parse(JSON.stringify(f.p0));
-      p.feet = [[cx + rx * Math.cos(th), cy + ry * Math.sin(th)], [cx - rx * Math.cos(th), cy - ry * Math.sin(th)]];
-      return p;
-    }
-    const u = f.hold
-      ? (phase < .25 ? smooth(phase / .25) : phase < .75 ? 1 : smooth(1 - (phase - .75) / .25))
-      : .5 - .5 * Math.cos(2 * Math.PI * phase);
+  /* Lecture : pause en position de départ, mouvement, pause en position d'arrivée, retour. */
+  function poseU(f, u) {
     const p = lerp(f.p0, f.p1, u);
     if (f.arc) {
       const lift = f.arc * Math.sin(Math.PI * u);
@@ -63,9 +55,31 @@ const FIG = (() => {
     }
     return p;
   }
+  function poseCrank(f, phase) {
+    const th = phase * 2 * Math.PI, [cx, cy] = f.crank.c, [rx, ry] = f.crank.r;
+    const p = JSON.parse(JSON.stringify(f.p0));
+    p.feet = [[cx + rx * Math.cos(th), cy + ry * Math.sin(th)], [cx - rx * Math.cos(th), cy - ry * Math.sin(th)]];
+    return p;
+  }
+  function uAt(f, ph) {
+    if (f.loop) return .5 - .5 * Math.cos(2 * Math.PI * ph);
+    if (f.hold) return ph < .2 ? smooth(ph / .2) : ph < .8 ? 1 : smooth(1 - (ph - .8) / .2);
+    if (ph < .12) return 0;
+    if (ph < .45) return smooth((ph - .12) / .33);
+    if (ph < .62) return 1;
+    if (ph < .95) return 1 - smooth((ph - .62) / .33);
+    return 0;
+  }
+  function phaseLabel(f, ph) {
+    if (f.crank || f.loop) return 'Mouvement continu';
+    if (f.hold) return ph < .2 ? 'Mise en position' : ph < .8 ? 'Tiens la position' : 'Relâche';
+    return ph < .12 ? 'Départ' : ph < .45 ? 'Mouvement' : ph < .62 ? 'Arrivée' : ph < .95 ? 'Retour contrôlé' : 'Départ';
+  }
+  const poseAt = (f, ph) => f.crank ? poseCrank(f, ph) : poseU(f, uAt(f, ph));
+  const endPhase = f => f.crank ? .25 : f.loop ? .5 : .5;
 
   /* ---------- dessin ---------- */
-  const ln = (a, b, cls, w) => `<line class="${cls}" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}"${w ? ` stroke-width="${w}"` : ''}/>`;
+  const ln = (a, b, cls) => `<line class="${cls}" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}"/>`;
   const circ = (c, r, cls) => `<circle class="${cls}" cx="${f1(c[0])}" cy="${f1(c[1])}" r="${r}"/>`;
 
   function bgSVG(shapes = []) {
@@ -77,12 +91,53 @@ const FIG = (() => {
     }).join('');
   }
 
-  function body(J, cls) {
-    const limbs = i => ln(J.sh, J['e' + i], 'limb', 0) + ln(J['e' + i], J['w' + i], 'limb', 0);
-    const legs = i => ln(J.hip, J['k' + i], 'limb', 0) + ln(J['k' + i], J['a' + i], 'limb', 0) + ln(J['a' + i], J['t' + i], 'limb foot', 0);
+  /* Segments qui bougent le plus = ceux qui travaillent : affichés en couleur. */
+  const SEGS = [['sh', 'e0'], ['e0', 'w0'], ['sh', 'e1'], ['e1', 'w1'], ['hip', 'k0'], ['k0', 'a0'], ['hip', 'k1'], ['k1', 'a1'], ['hip', 'sh']];
+  const segAngle = (J, a, b) => deg(Math.atan2(J[b][0] - J[a][0], J[b][1] - J[a][1]));
+  function activeSet(f) {
+    if (f._act) return f._act;
+    const A = solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), B = solve(f.crank ? poseCrank(f, .5) : poseU(f, 1));
+    const s = new Set(f.active || []);
+    for (const [a, b] of SEGS) {
+      let d = Math.abs(segAngle(A, a, b) - segAngle(B, a, b)); d = Math.min(d, 360 - d);
+      if (d > 22) s.add(a + '-' + b);
+    }
+    return (f._act = s);
+  }
+
+  /* Trajet du point qui bouge le plus, en pointillés avec une flèche. */
+  function trail(f) {
+    if (f._trail !== undefined) return f._trail;
+    let s = '';
+    if (f.crank) {
+      const [cx, cy] = f.crank.c, [rx, ry] = f.crank.r;
+      s = `<ellipse class="trail" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+    } else if (!f.loop) {
+      const J0 = solve(poseU(f, 0)), J1 = solve(poseU(f, 1));
+      let key = null, best = 14;
+      for (const k of ['w0', 't0', 'a0', 'head', 'hip']) {
+        const d = Math.hypot(J1[k][0] - J0[k][0], J1[k][1] - J0[k][1]);
+        if (d > best + 3) { best = d; key = k; }
+      }
+      if (key) {
+        const pts = Array.from({ length: 17 }, (_, i) => solve(poseU(f, i / 16))[key]);
+        const q = pts[16], p = pts[14];
+        const a = Math.atan2(q[1] - p[1], q[0] - p[0]);
+        const tip = [q[0] + Math.cos(a) * 3, q[1] + Math.sin(a) * 3];
+        const l = [q[0] + Math.cos(a + 2.5) * 7, q[1] + Math.sin(a + 2.5) * 7];
+        const r = [q[0] + Math.cos(a - 2.5) * 7, q[1] + Math.sin(a - 2.5) * 7];
+        s = `<polyline class="trail" points="${pts.slice(0, 15).map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>` +
+            `<polygon class="trail-head" points="${[tip, l, r].map(x => f1(x[0]) + ',' + f1(x[1])).join(' ')}"/>`;
+      }
+    }
+    return (f._trail = s);
+  }
+
+  function body(J, cls, act) {
+    const L = (a, b, extra = '') => ln(J[a], J[b], 'limb' + extra + (act && act.has(a + '-' + b) ? ' act' : ''));
     return `<g class="${cls}">
-      <g class="far">${legs(1)}${limbs(1)}</g>
-      <g class="near">${ln(J.hip, J.sh, 'limb trunk', 0)}${circ(J.head, 9, 'head')}${legs(0)}${limbs(0)}</g>
+      <g class="far">${L('hip', 'k1')}${L('k1', 'a1')}${ln(J.a1, J.t1, 'limb foot')}${L('sh', 'e1')}${L('e1', 'w1')}</g>
+      <g class="near">${L('hip', 'sh', ' trunk')}${circ(J.head, 9, 'head')}${L('hip', 'k0')}${L('k0', 'a0')}${ln(J.a0, J.t0, 'limb foot')}${L('sh', 'e0')}${L('e0', 'w0')}</g>
     </g>`;
   }
 
@@ -100,12 +155,9 @@ const FIG = (() => {
     if (f.lever) s += circ(J[f.lever.j], 6, 'pad');
     if (f.kpad) s += circ(J.k0, 5, 'pad') + circ(J.k1, 5, 'pad');
     switch (f.hand) {
-      case 'db': s += circ(J.w0, 5, 'prop') + circ(J.w1, 5, 'prop'); break;
-      case 'db1': s += circ(J.w0, 5.5, 'prop'); break;
-      case 'db2': s += circ(mid, 7, 'prop'); break;
-      case 'kb': s += circ([mid[0], mid[1] + 8], 8, 'prop'); break;
-      case 'mb': s += circ(mid, 10, 'prop'); break;
-      case 'grip': s += circ(J.w0, 4, 'pad'); break;
+      case 'grip': s += circ(J.w0, 4.5, 'pad'); break;
+      case 'bar': s += circ(mid, 10, 'plate'); break;
+      case 'hipbar': s += circ([J.hip[0], J.hip[1] - 9], 10, 'plate'); break;
     }
     if (f.plate) s += ln([J.t0[0] - 8, J.t0[1] - 9], [J.t0[0] + 8, J.t0[1] + 9], 'lever');
     return s;
@@ -113,9 +165,9 @@ const FIG = (() => {
 
   function frame(f, phase, ghost) {
     const J = solve(poseAt(f, phase));
-    let g = '';
-    if (ghost) g += body(solve(poseAt(f, 0)), 'ghost');
-    return g + propsBack(f, J) + body(J, '') + propsFront(f, J);
+    let g = trail(f);
+    if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost');
+    return g + propsBack(f, J) + body(J, '', activeSet(f)) + propsFront(f, J);
   }
 
   function wrap(f, inner, label) {
@@ -191,8 +243,8 @@ const FIG = (() => {
       { hip: [76, 80], t: 106, a: [2, 2, -2, -2] },
       { hand: 'db', dur: 3000 }),
     abducteurs: D(
-      { hip: [100, 92], t: 180, a: [18, 4, -18, -4], l: [14, 2, -14, -2], tl: [.45, .45], f: [90, -90] },
-      { l: [58, 8, -58, -8], tl: [.6, .6] },
+      { hip: [100, 88], t: 180, a: [18, 4, -18, -4], l: [10, 0, -10, 0], tl: [.7, .7], f: [90, -90] },
+      { l: [52, 10, -52, -10], tl: [.8, .8] },
       { bg: [['r', 76, 36, 48, 54, 6], ['r', 72, 94, 56, 8, 3], ['l', 100, 102, 100, 140, 5]], kpad: true }),
     'mollets-presse': D(
       { hip: [76, 118], t: 215, hands: [[84, 116], [82, 117]], feet: [[118, 74], [116, 76]], f: [170, 170] },
@@ -299,30 +351,131 @@ const FIG = (() => {
       { hold: true, dur: 3600 })
   };
 
+
+  /* ---------- exercices sur machines ajoutés ---------- */
+  DEFS['presse-explosive'] = { ...DEFS.presse, dur: 2200 };
+  DEFS['fente-smith'] = D(
+    { hip: [96, 76], t: 180, a: [-30, 165, -34, 165], feet: [[124, 137], [66, 135]], f: [90, 55] },
+    { hip: [94, 100] },
+    { bg: SMITH, bar: true });
+  DEFS['rdl-smith'] = D(
+    { hip: [100, 73], t: 180, a: [4, 4, 0, 0], feet: [[104, 137], [100, 137]] },
+    { hip: [76, 80], t: 106, a: [2, 2, -2, -2] },
+    { bg: SMITH, hand: 'bar', dur: 3600 });
+  DEFS['hip-thrust'] = D(
+    { hip: [92, 124], t: -110, hands: [[92, 114], [90, 115]], feet: [[130, 137], [126, 137]] },
+    { hip: [96, 102], t: -92, hands: [[96, 92], [94, 93]] },
+    { bg: [...SMITH, ['r', 18, 112, 42, 9, 3], ['l', 28, 121, 28, 140, 4], ['l', 52, 121, 52, 140, 4]], hand: 'hipbar' });
+  DEFS.adducteurs = D(
+    { hip: [100, 88], t: 180, a: [18, 4, -18, -4], l: [52, 10, -52, -10], tl: [.8, .8], f: [90, -90] },
+    { l: [10, 0, -10, 0], tl: [.7, .7] },
+    { bg: [['r', 76, 36, 48, 54, 6], ['r', 72, 94, 56, 8, 3], ['l', 100, 102, 100, 140, 5]], kpad: true });
+  DEFS['pull-over'] = D(
+    { hip: [94, 73], t: 168, a: [156, 156, 152, 152], feet: [[108, 137], [86, 137]] },
+    { a: [8, 8, 4, 4] },
+    { bg: [['l', 174, 10, 174, 140, 6]], cable: [174, 20], hand: 'grip' });
+  DEFS['y-raise'] = D(
+    { hip: [96, 73], t: 176, a: [20, 20, 16, 16], feet: [[106, 137], [90, 137]] },
+    { a: [150, 150, 146, 146] },
+    { bg: [['l', 168, 20, 168, 140, 6]], cable: [168, 128], hand: 'grip' });
+  DEFS['crunch-machine'] = D(
+    { hip: [80, 100], t: 190, a: [-10, 175, -12, 175], l: [80, 0, 78, 0] },
+    { t: 132, a: [30, 170, 28, 170] },
+    { bg: [['r', 62, 104, 38, 7, 3], ['l', 82, 111, 82, 140, 5], ['r', 108, 126, 14, 8, 3], ['l', 48, 20, 48, 140, 5]] });
+  DEFS['extension-lombaire'] = D(
+    { hip: [96, 80], t: 20, hands: [[118, 112], [116, 113]], feet: [[44, 122], [46, 122]], f: [160, 160] },
+    { t: 128, hands: [[124, 62], [122, 63]] },
+    { bg: [['l', 86, 100, 106, 84, 8], ['r', 32, 124, 24, 6, 3], ['l', 44, 130, 44, 140, 4], ['l', 96, 92, 96, 140, 4]] });
+  for (const k of ['tapis', 'fractionne', 'escalier']) DEFS[k].loop = true;
+
   /* ---------- API ---------- */
   function svg(id, label) {
     const f = DEFS[id];
     if (!f) return '';
-    const ghost = !f.crank && !f.hold && id !== 'tapis' && id !== 'fractionne';
-    return wrap(f, frame(f, f.crank ? 0 : .5, ghost), label);
+    return wrap(f, frame(f, endPhase(f), !f.crank && !f.loop), label);
   }
 
-  function mount(el, id, label) {
+  function mount(el, id, { label, onPhase } = {}) {
     const f = DEFS[id];
-    if (!el || !f) return () => {};
-    el.innerHTML = wrap(f, frame(f, .5, false), label);
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.innerHTML = svg(id, label); return () => {}; }
+    const noop = { stop() {}, set() {}, speed() { return 1; } };
+    if (!el || !f) return noop;
+    el.innerHTML = wrap(f, frame(f, 0, false), label);
     const g = el.querySelector('.fig-live');
-    const dur = f.dur || 2400;
-    let raf, t0;
+    const base = f.dur || 3400;
+    let mode = 'play', slow = false, raf = null, acc = 0, last = null, lastLabel = '';
+    const draw = ph => {
+      g.innerHTML = frame(f, ph, false);
+      const t = phaseLabel(f, ph);
+      if (onPhase && t !== lastLabel) { lastLabel = t; onPhase(t); }
+    };
     const loop = ts => {
-      if (!t0) t0 = ts;
-      g.innerHTML = frame(f, ((ts - t0) % dur) / dur, false);
+      if (mode === 'play') {
+        if (last !== null) acc += (ts - last) / (slow ? 1.8 : 1);
+        last = ts;
+        draw((acc % base) / base);
+      }
       raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { mode = 'end'; draw(endPhase(f)); }
+    else raf = requestAnimationFrame(loop);
+    return {
+      stop() { cancelAnimationFrame(raf); },
+      set(m) {
+        mode = m; last = null;
+        if (m === 'start') draw(0);
+        if (m === 'end') draw(endPhase(f));
+        if (m === 'play' && raf === null) raf = requestAnimationFrame(loop);
+      },
+      speed() { slow = !slow; return slow; }
+    };
   }
 
-  return { svg, mount, ids: Object.keys(DEFS) };
+  /* ---------- carte des muscles ---------- */
+  const MAP = {
+    front: [
+      ['deltoides', 'e', 32, 38, 7, 6], ['deltoides', 'e', 68, 38, 7, 6],
+      ['pectoraux', 'r', 36, 37, 13.5, 15, 5], ['pectoraux', 'r', 50.5, 37, 13.5, 15, 5],
+      ['biceps', 'e', 27, 57, 4.5, 9], ['biceps', 'e', 73, 57, 4.5, 9],
+      ['abdos', 'r', 43.5, 55, 13, 30, 4],
+      ['obliques', 'e', 38.5, 69, 3.8, 11], ['obliques', 'e', 61.5, 69, 3.8, 11],
+      ['quadriceps', 'e', 41.5, 118, 6.5, 18], ['quadriceps', 'e', 58.5, 118, 6.5, 18],
+      ['adducteurs', 'e', 47.6, 106, 2.4, 11], ['adducteurs', 'e', 52.4, 106, 2.4, 11],
+      ['mollets', 'e', 41, 159, 4, 12], ['mollets', 'e', 59, 159, 4, 12]
+    ],
+    back: [
+      ['trapezes', 'p', '50,23 63,35 50,53 37,35'],
+      ['deltoides-arr', 'e', 32, 38, 7, 6], ['deltoides-arr', 'e', 68, 38, 7, 6],
+      ['coiffe', 'e', 42, 44, 5, 4.5], ['coiffe', 'e', 58, 44, 5, 4.5],
+      ['dorsaux', 'p', '36,48 48,55 48,72 41,77 35,61'], ['dorsaux', 'p', '64,48 52,55 52,72 59,77 65,61'],
+      ['triceps', 'e', 27, 57, 4.5, 9], ['triceps', 'e', 73, 57, 4.5, 9],
+      ['lombaires', 'r', 44, 72, 12, 13, 3],
+      ['abducteurs', 'e', 36.5, 90, 3.4, 6.5], ['abducteurs', 'e', 63.5, 90, 3.4, 6.5],
+      ['fessiers', 'e', 43.5, 96, 6.5, 8], ['fessiers', 'e', 56.5, 96, 6.5, 8],
+      ['ischios', 'e', 42, 122, 6.5, 16], ['ischios', 'e', 58, 122, 6.5, 16],
+      ['mollets', 'e', 41.5, 156, 5, 13], ['mollets', 'e', 58.5, 156, 5, 13]
+    ]
+  };
+  const SILHOUETTE = `<circle cx="50" cy="12" r="9"/><rect x="46" y="19" width="8" height="9" rx="2"/>
+    <path d="M29,31 Q50,25 71,31 L75,41 L67,61 L65,84 L67,101 L33,101 L35,84 L33,61 L25,41 Z"/>
+    <rect x="21" y="39" width="11" height="30" rx="5"/><rect x="68" y="39" width="11" height="30" rx="5"/>
+    <rect x="19" y="66" width="10" height="27" rx="5"/><rect x="71" y="66" width="10" height="27" rx="5"/>
+    <circle cx="23" cy="97" r="4.5"/><circle cx="77" cy="97" r="4.5"/>
+    <rect x="34" y="96" width="15" height="44" rx="7"/><rect x="51" y="96" width="15" height="44" rx="7"/>
+    <rect x="35" y="137" width="12" height="36" rx="6"/><rect x="53" y="137" width="12" height="36" rx="6"/>
+    <ellipse cx="40" cy="176" rx="6" ry="3"/><ellipse cx="60" cy="176" rx="6" ry="3"/>`;
+  function muscleShape(m, cls) {
+    if (m[1] === 'e') return `<ellipse class="${cls}" cx="${m[2]}" cy="${m[3]}" rx="${m[4]}" ry="${m[5]}"/>`;
+    if (m[1] === 'r') return `<rect class="${cls}" x="${m[2]}" y="${m[3]}" width="${m[4]}" height="${m[5]}" rx="${m[6]}"/>`;
+    return `<polygon class="${cls}" points="${m[2]}"/>`;
+  }
+  function muscles(target = {}, label = 'Muscles ciblés') {
+    const P = new Set(target.p || []), S = new Set(target.s || []);
+    const side = (list, dx, name) => `<g transform="translate(${dx},4)"><g class="mm-base">${SILHOUETTE}</g>
+      ${list.map(m => muscleShape(m, P.has(m[0]) ? 'mm-p' : S.has(m[0]) ? 'mm-s' : 'mm-n')).join('')}
+      <text x="50" y="188" text-anchor="middle">${name}</text></g>`;
+    return `<svg class="musclemap" viewBox="0 0 210 196" role="img" aria-label="${label}">
+      ${side(MAP.front, 0, 'Face')}${side(MAP.back, 108, 'Dos')}</svg>`;
+  }
+
+  return { svg, mount, muscles, ids: Object.keys(DEFS) };
 })();

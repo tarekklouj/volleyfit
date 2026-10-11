@@ -7,7 +7,10 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Séance du jour** selon tes jours de salle et ton jour de match (pas de jambes la veille, récupération le lendemain).
 - **Séances de 50 à 70 minutes**, échauffement compris : le nombre de séries s'ajuste automatiquement, avec un retour au calme si le temps le permet.
 - **Échauffement cardio de 15 à 25 minutes** au début de chaque séance, sur la machine de ton choix (tapis, vélo, rameur, elliptique, escalier).
-- **41 exercices** sur les machines standard des clubs Basic-Fit (leg press, leg extension, leg curl, abducteurs, lat pulldown, chest press, seated row, pec deck, Smith machine, poulies, zone fonctionnelle), chacun avec une **illustration animée**, les étapes, l'erreur fréquente et son intérêt pour le volley.
+- **Exercices 100 % machines** Basic-Fit (leg press, leg extension, leg curl, abducteurs, adducteurs, lat pulldown, chest press, seated row, pec deck, machine abdos, Smith machine, poulies), **10 répétitions minimum**.
+- **Animation de chaque exercice** avec pause au départ et à l'arrivée, parties qui travaillent en orange, trajet en pointillés, lecture, arrêt sur image et ralenti.
+- **Carte des muscles ciblés** (face et dos) pour chaque exercice, muscles principaux et secondaires.
+- **Carte IMC** avec jauge et explication.
 - **Alternatives** : machine prise ou absente dans ton club ? Remplace l'exercice en un geste, ton choix est retenu.
 - **Suivi série par série** comme les applis de gym : charge, répétitions, valeurs de la séance précédente, chrono de repos automatique (bip, vibration, ±15 s).
 - **Records personnels** détectés automatiquement, avec courbe de progression par exercice.
