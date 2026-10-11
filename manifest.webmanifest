@@ -1,0 +1,12 @@
+{
+  "name": "VolleyFit",
+  "short_name": "VolleyFit",
+  "description": "Programme de salle pour joueur de volleyball et suivi corporel.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDF0F5",
+  "theme_color": "#1F4FB8",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
