@@ -450,11 +450,22 @@ function startSession(code) {
   if (state.active && !confirm('Une séance est déjà en cours. La remplacer ?')) return;
   openCheckin(code);
 }
+/* Annuler une séance : sans confirmation si aucune série n'est encore validée. */
+function cancelSession() {
+  const a = state.active;
+  if (!a) return;
+  const anyDone = a.items.some(it => it.sets.some(x => x.done));
+  if (anyDone && !confirm('Annuler la séance ? Les séries déjà validées ne seront pas enregistrées.')) return;
+  state.active = null; stopTimer(); save(); render(); window.scrollTo(0, 0);
+  toast('Séance annulée.');
+}
+
 function beginSession(code, light, checkin) {
   state.active = { code, start: Date.now(), light, checkin, planned: fitSession(code, undefined, light).minutes, items: buildItems(code, light), rpe: '', notes: '' };
   save();
   closeSheet();
   go('today');
+  toast(`Séance ${code} démarrée.`, { action: 'Annuler', onAction: cancelSession, duration: 8000 });
 }
 
 /* Check-in : comment tu te sens avant de commencer ? */
@@ -500,13 +511,13 @@ function renderWorkout(el) {
     <header class="wk-head" style="--sess:${s.color}">
       <div class="wk-head__row">
         <div><p class="muted small">Séance ${a.code}${a.light ? ', version allégée' : ''}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
-        <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
+        <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="icon-btn wk-cancel" id="cancel-top" type="button" aria-label="Annuler la séance">${ICON.close}</button><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
     </header>
     ${isDeload() ? '<p class="callout">Semaine allégée : une série de moins.</p>' : ''}
     <div id="wk-items">${a.items.map((it, i) => itemHTML(it, i)).join('')}</div>
-    <button class="btn btn--quiet btn--block" id="abandon" type="button">Abandonner la séance</button>`;
+    <button class="btn btn--quiet btn--block" id="abandon" type="button">Annuler la séance</button>`;
   updateProgress();
   tickElapsed();
 
@@ -516,9 +527,8 @@ function renderWorkout(el) {
     if (t.dataset.f) { const st = state.active.items[+t.dataset.i].sets[+t.dataset.k]; st[t.dataset.f] = t.value; save(); }
   };
   $('#finish').onclick = openFinish;
-  $('#abandon').onclick = () => {
-    if (confirm('Abandonner la séance ? Rien ne sera enregistré.')) { state.active = null; stopTimer(); save(); render(); }
-  };
+  $('#abandon').onclick = cancelSession;
+  $('#cancel-top').onclick = cancelSession;
 }
 
 /* Charge suggérée : +2,5 ou +5 kg si toutes les répétitions ont été réussies la dernière fois. */
@@ -1227,13 +1237,15 @@ function renderProfile() {
 
 /* ================= Divers ================= */
 let toastT;
-function toast(msg) {
+function toast(msg, { action, onAction, duration = 2800 } = {}) {
   const t = $('#toast');
-  t.textContent = msg; t.hidden = false;
-  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800);
+  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button type="button" class="toast__btn">${esc(action)}</button>` : ''}`;
+  t.hidden = false;
+  if (action) $('.toast__btn', t).onclick = () => { t.hidden = true; clearTimeout(toastT); onAction(); };
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '9';
+const APP_VERSION = '10';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

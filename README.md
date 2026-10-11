@@ -25,6 +25,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Mes réglages machine** (siège, dossier, prise…) mémorisés pour chaque exercice et rappelés pendant la séance.
 - **Muscles travaillés sur 7 jours** en carte de chaleur, avec les muscles clés pas encore travaillés.
 - **Passage automatique** à l'exercice suivant après la dernière série.
+- **Annulation facile** d'une séance démarrée par erreur : bouton « Annuler » juste après le démarrage, et croix en haut de la séance.
 - **Hors-ligne et installable**, données stockées uniquement sur ton appareil (export et import JSON).
 
 ## Mise en ligne avec GitHub Pages
