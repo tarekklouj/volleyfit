@@ -5,17 +5,17 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 ## Fonctionnalités
 
 - **Séance du jour** selon tes jours de salle et ton jour de match (pas de jambes la veille, récupération le lendemain).
-- **4 séances** adaptées au volley et au matériel Basic-Fit :
-  - A, Jambes & détente (sauts, squat, protection du tendon rotulien)
-  - B, Épaules & haut du corps (20 min de tapis, coiffe des rotateurs, dorsaux)
-  - C, Explosivité & gainage (kettlebell, médecine-ball, chevilles, fractionné)
-  - R, Récupération (lendemain de match)
-- **Mode séance** : séries à cocher, chrono de repos automatique avec vibration et bip, charges retenues d'une fois à l'autre, ressenti et notes.
-- **Cycles de 4 semaines** : 3 semaines de progression, 1 semaine allégée automatique.
-- **Suivi** : poids, taille, IMC, masse grasse, musculaire, osseuse, eau corporelle, avec courbes.
-- **Conseils selon ton poste** (passeur, central, pointu, libéro…).
-- **Hors-ligne et installable** sur l'écran d'accueil du téléphone.
-- Données stockées **uniquement sur ton appareil**, avec export et import en JSON.
+- **Échauffement cardio de 15 à 25 minutes** au début de chaque séance, sur la machine de ton choix (tapis, vélo, rameur, elliptique, escalier).
+- **41 exercices** sur les machines standard des clubs Basic-Fit (leg press, leg extension, leg curl, abducteurs, lat pulldown, chest press, seated row, pec deck, Smith machine, poulies, zone fonctionnelle), chacun avec une **illustration animée**, les étapes, l'erreur fréquente et son intérêt pour le volley.
+- **Alternatives** : machine prise ou absente dans ton club ? Remplace l'exercice en un geste, ton choix est retenu.
+- **Suivi série par série** comme les applis de gym : charge, répétitions, valeurs de la séance précédente, chrono de repos automatique (bip, vibration, ±15 s).
+- **Records personnels** détectés automatiquement, avec courbe de progression par exercice.
+- **Historique** avec calendrier mensuel, volume soulevé et ressenti d'effort.
+- **Objectif hebdomadaire et série de semaines** réussies.
+- **Suivi corporel** : poids, IMC, masse grasse, musculaire, osseuse, eau, objectifs de poids et de masse grasse.
+- **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.
+- **Cycles de 4 semaines** avec semaine allégée automatique.
+- **Hors-ligne et installable**, données stockées uniquement sur ton appareil (export et import JSON).
 
 ## Mise en ligne avec GitHub Pages
 
@@ -35,7 +35,8 @@ Après une modification, augmente le numéro de `CACHE` dans `sw.js` (`volleyfit
 ```
 index.html            page principale
 css/style.css         styles
-js/data.js            programme d'entraînement
+js/data.js            exercices et programme
+js/figures.js         illustrations animées
 js/app.js             logique de l'application
 sw.js                 cache hors-ligne
 manifest.webmanifest  installation sur téléphone

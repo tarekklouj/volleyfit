@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>VolleyFit</title>
-  <meta name="description" content="Programme de salle pour joueur de volleyball, avec suivi du poids et de la composition corporelle.">
+  <meta name="description" content="Programme de salle Basic-Fit pour joueur de volleyball, avec suivi des charges, des records et de la composition corporelle.">
   <meta name="theme-color" content="#1F4FB8">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -16,47 +16,51 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <button id="resume" class="resume" type="button" hidden><span></span><b>Reprendre</b></button>
+
   <main class="app">
     <section id="view-today" class="view" aria-label="Séance du jour"></section>
     <section id="view-program" class="view" aria-label="Programme" hidden></section>
-    <section id="view-tracking" class="view" aria-label="Suivi" hidden></section>
+    <section id="view-library" class="view" aria-label="Exercices" hidden></section>
+    <section id="view-progress" class="view" aria-label="Progrès" hidden></section>
     <section id="view-profile" class="view" aria-label="Profil" hidden></section>
   </main>
 
   <div id="timer" class="timer" hidden role="timer" aria-live="polite">
     <div class="timer__track"><span id="timer-progress"></span></div>
     <div class="timer__row">
-      <div>
+      <div class="timer__info">
         <p id="timer-label" class="timer__label"></p>
         <p id="timer-time" class="timer__time">0:00</p>
       </div>
-      <button id="timer-add" class="btn btn--ghost" type="button">+15 s</button>
-      <button id="timer-stop" class="btn btn--ghost" type="button">Arrêter</button>
+      <button id="timer-minus" class="timer__btn" type="button" aria-label="Moins 15 secondes">−15</button>
+      <button id="timer-plus" class="timer__btn" type="button" aria-label="Plus 15 secondes">+15</button>
+      <button id="timer-skip" class="timer__btn timer__btn--skip" type="button">Passer</button>
     </div>
   </div>
 
   <nav class="tabs" aria-label="Navigation">
     <button class="tab" data-view="today" type="button" aria-current="page">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3c3 3 3 15 0 18M3.5 9c4 1.5 13 1.5 17 0M5 17c3-3 11-3 14 0"/></svg>
-      Séance
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3c3 3 3 15 0 18M3.5 9c4 1.5 13 1.5 17 0M5 17c3-3 11-3 14 0"/></svg>Séance
     </button>
     <button class="tab" data-view="program" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-      Programme
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Programme
     </button>
-    <button class="tab" data-view="tracking" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>
-      Suivi
+    <button class="tab" data-view="library" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4M6 7v10M18 7v10M21 10v4M6 12h12"/></svg>Exercices
+    </button>
+    <button class="tab" data-view="progress" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>Progrès
     </button>
     <button class="tab" data-view="profile" type="button">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
-      Profil
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil
     </button>
   </nav>
 
   <div id="toast" class="toast" role="status" hidden></div>
 
   <script src="js/data.js"></script>
+  <script src="js/figures.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
