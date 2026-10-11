@@ -1048,7 +1048,8 @@ function renderProfile() {
         <label class="btn btn--ghost">Importer<input type="file" id="import" accept="application/json,.json" hidden></label>
       </div>
       <button class="btn btn--danger" id="reset" type="button">Tout effacer</button>
-    </section>`;
+    </section>
+    <p class="muted small">VolleyFit version ${APP_VERSION}</p>`;
 
   const preview = () => {
     const plan = planWeek();
@@ -1108,8 +1109,16 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
+const APP_VERSION = '6';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && !reloaded) { reloaded = true; location.reload(); }
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then(reg => { reg.update(); document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update(); }); })
+    .catch(() => {});
 }
 
 render();
