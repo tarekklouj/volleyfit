@@ -21,6 +21,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Cycles de 4 semaines** avec semaine allégée automatique.
 - **Thème clair, sombre ou système**, au choix dans Profil.
 - **Check-in avant séance** (énergie, courbatures, douleur) avec version allégée conseillée si besoin.
+- **Charge de départ conseillée** pour chaque exercice selon ton poids de corps et ton niveau de force (débutant, intermédiaire, confirmé), réglable dans Profil. Contrepoids conseillé pour les machines assistées.
 - **Charge suggérée** : quand toutes les répétitions sont réussies, l'app propose +2,5 kg (ou +5 kg au-delà de 30 kg).
 - **Mes réglages machine** (siège, dossier, prise…) mémorisés pour chaque exercice et rappelés pendant la séance.
 - **Muscles travaillés sur 7 jours** en carte de chaleur, avec les muscles clés pas encore travaillés.

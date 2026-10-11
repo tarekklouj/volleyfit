@@ -340,6 +340,35 @@ const TEMPLATE = {
     ] }
 };
 
+
+/* =========================================================
+   Charges de départ conseillées, en fraction du poids de corps,
+   pour un niveau intermédiaire et des séries de 10 à 15 répétitions.
+   type : stack (machine à plaques, pas de 5 kg), cable (poulie, pas de 2,5 kg),
+          smith (disques ajoutés à la barre guidée, pas de 2,5 kg),
+          assist (contrepoids des machines assistées : plus il est lourd, plus c'est facile).
+   Les machines varient selon les marques : ce sont des points de départ à ajuster.
+   ========================================================= */
+const LEVELS = {
+  debutant: { label: "Débutant", factor: 0.6, desc: "Moins de 6 mois de musculation régulière, ou reprise après une longue pause." },
+  intermediaire: { label: "Intermédiaire", factor: 1, desc: "Entre 6 mois et 2 ans d'entraînement régulier." },
+  confirme: { label: "Confirmé", factor: 1.35, desc: "Plus de 2 ans d'entraînement régulier avec des charges lourdes." }
+};
+const ASSIST_BY_LEVEL = { debutant: 0.55, intermediaire: 0.35, confirme: 0.15 };
+const LOADS = {
+  presse: [1.4, "stack"], "presse-explosive": [0.7, "stack"], "smith-squat": [0.75, "smith"], "fente-smith": [0.4, "smith"],
+  "leg-ext-iso": [0.55, "stack"], "leg-extension": [0.5, "stack"], "leg-curl": [0.4, "stack"], "rdl-smith": [0.7, "smith"],
+  "hip-thrust": [0.9, "smith"], abducteurs: [0.5, "stack"], adducteurs: [0.45, "stack"], "mollets-presse": [1.1, "stack"],
+  "mollets-smith": [0.6, "smith"], kickback: [0.1, "cable"],
+  "rot-ext": [0.05, "cable"], "face-pull": [0.22, "cable"], "y-raise": [0.05, "cable"], "reverse-fly": [0.25, "stack"],
+  "tirage-vertical": [0.6, "stack"], "traction-assist": [0, "assist"], "dips-assist": [0, "assist"],
+  "rowing-assis": [0.6, "stack"], "row-unilateral": [0.25, "cable"], "chest-press": [0.6, "stack"], "smith-bench": [0.6, "smith"],
+  "smith-incline": [0.5, "smith"], "pec-deck": [0.4, "stack"], "cable-fly": [0.12, "cable"], "shoulder-press": [0.4, "stack"],
+  "lateral-raise": [0.06, "cable"], "pull-over": [0.25, "cable"], "biceps-curl-cable": [0.25, "cable"], "biceps-machine": [0.25, "stack"],
+  "hammer-rope": [0.22, "cable"], "triceps-pushdown": [0.3, "cable"], "triceps-overhead": [0.22, "cable"],
+  woodchop: [0.15, "cable"], pallof: [0.12, "cable"], "crunch-machine": [0.4, "stack"], "extension-lombaire": [0.1, "smith"]
+};
+
 /* Séances du moment, avec un exercice choisi pour chaque famille (rempli par l'app). */
 const SESSIONS = {};
 

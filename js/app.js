@@ -65,7 +65,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle'
+    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle', level: 'debutant'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
   nutrition: { age: '', sex: 'h', objective: 'auto' }, food: {}, picks: {}, rerolls: {}
@@ -76,6 +76,7 @@ function hydrate(s) {
   const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
   delete out.profile.goal;
   if (!['cycle', 'seance', 'fixe'].includes(out.profile.variety)) out.profile.variety = 'cycle';
+  if (!LEVELS[out.profile.level]) out.profile.level = 'debutant';
   delete out.profile.position;
   for (const [k, v] of Object.entries(s.swaps || {})) if (EXERCISES[v]) out.swaps[k] = v;
   if (out.active && (!out.active.items || out.active.items.some(it => !EXERCISES[it.ex]))) out.active = null;
@@ -239,7 +240,7 @@ function e1rm(s) {
   if (!kg || !r) return 0;
   return r === 1 ? kg : kg * (1 + r / 30);
 }
-const setValue = (exId, s) => !EX[exId] ? 0 : EX[exId].type === 'hold' ? (num(s.sec) || 0) : (EX[exId].loaded ? e1rm(s) : (num(s.reps) || 0));
+const setValue = (exId, s) => !EX[exId] ? 0 : isAssisted(exId) ? (num(s.reps) ? Math.max(1, bodyWeight() - (num(s.kg) || 0)) * (1 + num(s.reps) / 30) : 0) : EX[exId].type === 'hold' ? (num(s.sec) || 0) : (EX[exId].loaded ? e1rm(s) : (num(s.reps) || 0));
 function lastSetsFor(exId) {
   for (const h of state.history) {
     const it = (h.items || []).find(x => x.ex === exId && (x.sets || []).some(s => s.done));
@@ -265,7 +266,7 @@ function setText(exId, s) {
   return e.loaded && num(s.kg) ? `${fmtKg(num(s.kg))} kg × ${s.reps}` : `${s.reps} répétitions`;
 }
 function sessionVolume(items) {
-  return items.reduce((t, it) => t + (it.sets || []).reduce((a, s) => a + (s.done ? (num(s.kg) || 0) * (num(s.reps) || 0) : 0), 0), 0);
+  return items.reduce((t, it) => t + (isAssisted(it.ex) ? 0 : (it.sets || []).reduce((a, s) => a + (s.done ? (num(s.kg) || 0) * (num(s.reps) || 0) : 0), 0)), 0);
 }
 function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - weekday(x)); return x; }
 function sessionsBetween(a, b) { return state.history.filter(h => { const d = new Date(h.date); return d >= a && d < b; }); }
@@ -334,6 +335,17 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet()
 function exThumb(id, cls = '') {
   return `<span class="thumb ${cls}">${FIG.svg(EX[id].fig, 'Illustration : ' + EX[id].name)}</span>`;
 }
+function loadTableHTML(id) {
+  const last = lastSetsFor(id).filter(x => num(x.kg));
+  const lastKg = last.length ? (isAssisted(id) ? Math.min(...last.map(x => num(x.kg))) : Math.max(...last.map(x => num(x.kg)))) : null;
+  return `<div class="loads">
+    <div class="panel__head"><h3>${isAssisted(id) ? 'Contrepoids conseillé' : 'Charge conseillée'}</h3><span class="muted small">pour ${fmtKg(bodyWeight())} kg${currentWeight() ? '' : ' (poids par défaut)'}</span></div>
+    <div class="loads__grid">${Object.entries(LEVELS).map(([k, l]) => `
+      <div class="${k === state.profile.level ? 'on' : ''}"><p class="loads__kg">${fmtKg(startLoad(id, k))} kg</p><p class="loads__lvl">${l.label}</p></div>`).join('')}</div>
+    <p class="muted small">${loadNote(id)} Pour 10 à 15 répétitions : la dernière doit être difficile mais propre.${lastKg != null ? ` <strong>Ta dernière charge : ${fmtKg(lastKg)} kg.</strong>` : ''}</p>
+  </div>`;
+}
+
 function openExercise(id) {
   const e = EX[id], best = bestFor(id);
   let anim = { stop() {} };
@@ -356,6 +368,7 @@ function openExercise(id) {
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
     <label class="field ex-note"><span>Mes réglages sur cette machine</span><textarea id="ex-note" rows="2" placeholder="Ex. : siège 4, dossier 2, poignées hautes">${esc(state.exNotes[id] || '')}</textarea></label>
+    ${LOADS[id] ? loadTableHTML(id) : ''}
     <h3 class="sub">Muscles ciblés</h3>
     ${musclesHTML(e)}
     <h3 class="sub">Comment faire</h3>
@@ -597,16 +610,36 @@ function renderWorkout(el) {
   $('#cancel-top').onclick = cancelSession;
 }
 
+/* Charge de départ selon le poids de corps et le niveau de force. */
+const isAssisted = id => LOADS[id]?.[1] === 'assist';
+function bodyWeight() { return currentWeight() || 75; }
+function startLoad(id, level = state.profile.level) {
+  const L = LOADS[id];
+  if (!L) return null;
+  const [ratio, kind] = L, bw = bodyWeight();
+  if (kind === 'assist') return Math.max(5, Math.round(bw * ASSIST_BY_LEVEL[level] / 5) * 5);
+  const raw = bw * ratio * LEVELS[level].factor;
+  const step = kind === 'stack' ? 5 : kind === 'cable' ? (raw < 10 ? 1.25 : 2.5) : 2.5;
+  return Math.max(step, Math.round(raw / step) * step);
+}
+function loadNote(id) {
+  return isAssisted(id) ? 'Contrepoids : plus il est lourd, plus c\'est facile. Baisse-le quand tu progresses.'
+    : LOADS[id]?.[1] === 'smith' ? 'Charge des disques ajoutés sur la barre guidée.'
+    : LOADS[id]?.[1] === 'cable' ? 'Charge affichée sur la poulie.' : 'Charge affichée sur la machine.';
+}
+
 /* Charge suggérée : +2,5 ou +5 kg si toutes les répétitions ont été réussies la dernière fois. */
 function suggestFor(it) {
   const e = EX[it.ex];
   if (!e?.loaded || (it.kind !== 'reps' && it.kind !== 'hold')) return null;
   const prev = lastSetsFor(it.ex).filter(x => num(x.kg));
-  if (!prev.length) return null;
-  const kg = Math.max(...prev.map(x => num(x.kg)));
+  if (!prev.length) { const k = startLoad(it.ex); return k ? { kg: k, start: true } : null; }
+  const assisted = isAssisted(it.ex);
+  const kg = assisted ? Math.min(...prev.map(x => num(x.kg))) : Math.max(...prev.map(x => num(x.kg)));
   const top = it.kind === 'hold' ? it.hold : Math.max(...(String(it.reps).match(/\d+/g) || [10]).map(Number));
   const hit = prev.every(x => (it.kind === 'hold' ? num(x.sec) : num(x.reps)) >= top);
   if (!hit || state.active?.light) return { kg, up: false };
+  if (assisted) return kg > 5 ? { kg: kg - 5, up: true, from: kg, assisted } : { kg, up: false };
   return { kg: kg + (kg < 30 ? 2.5 : 5), up: true, from: kg };
 }
 
@@ -640,7 +673,7 @@ function itemHTML(it, i) {
       ${isW ? `<p class="small muted">${esc(s.warmNote)}</p>` : it.cooldown ? '<p class="small muted">Allure tranquille pour faire redescendre le cœur.</p>' : ''}`;
   } else {
     const prev = lastSetsFor(it.ex), loaded = !!e.loaded, f = it.kind === 'hold' ? 'sec' : 'reps', sug = suggestFor(it);
-    body = `${sug?.up ? `<p class="suggest">${ICON.up}<span>Monte à <strong>${fmtKg(sug.kg)} kg</strong> : tu as réussi toutes tes répétitions à ${fmtKg(sug.from)} kg la dernière fois.</span></p>` : ''}<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
+    body = `${sug?.up ? `<p class="suggest">${ICON.up}<span>${sug.assisted ? `Baisse le contrepoids à <strong>${fmtKg(sug.kg)} kg</strong>` : `Monte à <strong>${fmtKg(sug.kg)} kg</strong>`} : tu as réussi toutes tes répétitions à ${fmtKg(sug.from)} kg la dernière fois.</span></p>` : ''}${sug?.start ? `<p class="suggest suggest--start">${ICON.up}<span>${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} de départ conseillée : <strong>${fmtKg(sug.kg)} kg</strong> (${LEVELS[state.profile.level].label.toLowerCase()}, ${fmtKg(bodyWeight())} kg). Si tu fais facilement plus de répétitions, ${isAssisted(it.ex) ? 'baisse le contrepoids' : 'monte'} à la série suivante ; si tu n'y arrives pas, ${isAssisted(it.ex) ? 'monte-le' : 'baisse'}.</span></p>` : ''}<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
       <div class="sets__row sets__row--head" role="row"><span role="columnheader">Série</span><span role="columnheader">Précédent</span>${loaded ? '<span role="columnheader">kg</span>' : ''}<span role="columnheader">${f === 'sec' ? 'Sec' : 'Rép.'}</span><span></span></div>
       ${it.sets.map((st, k) => {
         const pv = prev[k] || prev[prev.length - 1];
@@ -1210,6 +1243,13 @@ function renderProfile() {
       <label class="field"><span>Taille (cm)</span><input id="p-height" inputmode="decimal" value="${esc(p.height)}" placeholder="188"></label>
     </section>
 
+    <section class="panel form">
+      <h2>Niveau de force</h2>
+      <p class="muted small">Sert à proposer une charge de départ sur chaque exercice. Après ta première séance, l'app se base sur tes vraies charges.</p>
+      <div class="goal-pick" role="group" aria-label="Niveau de force">${Object.entries(LEVELS).map(([k, l]) => `
+        <button type="button" data-level="${k}" aria-pressed="${p.level === k}"><strong>${l.label}</strong><span>${esc(l.desc)}</span></button>`).join('')}</div>
+    </section>
+
     <section class="panel form" id="variety-section">
       <h2>Variété des exercices</h2>
       <p class="muted small">La structure des séances reste la même. Choisis quand l'app change les exercices dans chaque famille de mouvement.</p>
@@ -1286,6 +1326,11 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
+  $$('[data-level]', el).forEach(b => b.onclick = () => {
+    p.level = b.dataset.level; save();
+    $$('[data-level]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    toast(`Niveau ${LEVELS[p.level].label.toLowerCase()} : charges de départ mises à jour.`);
+  });
   $$('[data-variety]', el).forEach(b => b.onclick = () => {
     p.variety = b.dataset.variety; resolveSessions(); save();
     $$('[data-variety]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1532,7 +1577,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '11';
+const APP_VERSION = '12';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
