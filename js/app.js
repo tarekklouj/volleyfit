@@ -68,13 +68,15 @@ const defaults = () => ({
     goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle', level: 'debutant'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
-  nutrition: { age: '', sex: 'h', objective: 'auto' }, food: {}, picks: {}, rerolls: {}
+  nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
 });
 
 function hydrate(s) {
   const d = defaults();
   const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
   delete out.profile.goal;
+  if (!s.idV) { out.nutrition.sex = ''; out.idV = 14; }
+  if (!['h', 'f'].includes(out.nutrition.sex)) out.nutrition.sex = '';
   if (!['cycle', 'seance', 'fixe'].includes(out.profile.variety)) out.profile.variety = 'cycle';
   if (!LEVELS[out.profile.level]) out.profile.level = 'debutant';
   delete out.profile.position;
@@ -427,6 +429,59 @@ function weekMusclesHTML() {
   </section>`;
 }
 
+/* ================= Identité : sexe, âge, taille ================= */
+function identityMissing() {
+  const m = [];
+  if (!['h', 'f'].includes(state.nutrition.sex)) m.push('sexe');
+  const a = num(state.nutrition.age); if (!a || a < 12 || a > 90) m.push('âge');
+  const h = num(state.profile.height); if (!h || h < 120 || h > 230) m.push('taille');
+  return m;
+}
+const listFr = arr => arr.length < 2 ? arr.join('') : `${arr.slice(0, -1).join(', ')} et ${arr[arr.length - 1]}`;
+function identityHTML(prefix) {
+  const n = state.nutrition, p = state.profile;
+  return `<div class="field"><span>Sexe <b class="req">obligatoire</b></span>
+      <div class="seg seg--choice" role="radiogroup" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" role="radio" data-${prefix}sex="${k}" aria-checked="${n.sex === k}" aria-pressed="${n.sex === k}">${l}</button>`).join('')}</div></div>
+    <div class="grid-2">
+      <label class="field"><span>Âge <b class="req">obligatoire</b></span><input id="${prefix}age" inputmode="numeric" value="${esc(n.age)}" placeholder="Ex. : 32"></label>
+      <label class="field"><span>Taille (cm) <b class="req">obligatoire</b></span><input id="${prefix}height" inputmode="decimal" value="${esc(p.height)}" placeholder="Ex. : 188"></label>
+    </div>`;
+}
+function bindIdentity(root, prefix, onChange) {
+  $$(`[data-${prefix}sex]`, root).forEach(b => b.onclick = () => {
+    state.nutrition.sex = b.getAttribute(`data-${prefix}sex`); save();
+    $$(`[data-${prefix}sex]`, root).forEach(x => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-checked', String(x === b)); });
+    onChange && onChange();
+  });
+  $(`#${prefix}age`, root).oninput = e => { state.nutrition.age = num(e.target.value) ?? ''; save(); onChange && onChange(); };
+  $(`#${prefix}height`, root).oninput = e => { state.profile.height = num(e.target.value) ?? ''; save(); onChange && onChange(); };
+}
+const identityBanner = () => {
+  const m = identityMissing();
+  return m.length ? `<button class="panel id-banner" type="button" data-complete-id><strong>Complète ton profil</strong><span>Indique ton ${listFr(m)} : FC max, zones cardiaques, IMC et besoins nutritionnels sont calculés à partir de ces infos.</span></button>` : '';
+};
+function openIdentitySheet() {
+  const body = openSheet(`
+    <h2 class="sheet__title">Ton profil</h2>
+    <p class="muted">Ces infos servent à calculer ta fréquence cardiaque maximale, tes zones, ton IMC et tes besoins en calories et protéines.</p>
+    ${identityHTML('o')}
+    <label class="field"><span>Poids actuel (kg) <span class="muted">facultatif</span></span><input id="oweight" inputmode="decimal" placeholder="Ex. : 92"></label>
+    <p class="callout" id="o-status"></p>
+    <button class="btn btn--block" type="button" id="o-save">Valider</button>
+  `, { label: 'Ton profil', onClose: () => render() });
+  const status = () => {
+    const m = identityMissing();
+    $('#o-status', body).textContent = m.length ? `Il manque : ${listFr(m)}.` : 'Tout est prêt, les calculs sont personnalisés.';
+    $('#o-save', body).disabled = !!m.length;
+  };
+  bindIdentity(body, 'o', status); status();
+  $('#o-save', body).onclick = () => {
+    const w = num($('#oweight', body).value);
+    if (w && w > 30 && w < 250) state.measures.push({ id: Date.now(), date: new Date().toISOString(), weight: w, height: num(state.profile.height) });
+    save(); closeSheet(); toast('Profil complété.');
+  };
+}
+
 /* ================= Fréquence cardiaque =================
    FC max théorique : Tanaka (208 − 0,7 × âge) chez l'homme, Gulati (206 − 0,88 × âge) chez la femme. */
 const HR_ZONES = [
@@ -444,7 +499,7 @@ const HR_TARGET = {
 };
 function hrProfile() {
   const age = num(state.nutrition.age);
-  if (!age || age < 12 || age > 90) return null;
+  if (!age || age < 12 || age > 90 || !['h', 'f'].includes(state.nutrition.sex)) return null;
   const female = state.nutrition.sex === 'f';
   const max = Math.round(female ? 206 - 0.88 * age : 208 - 0.7 * age);
   return { max, age, female, formula: female ? 'Gulati : 206 − 0,88 × âge' : 'Tanaka : 208 − 0,7 × âge' };
@@ -460,7 +515,7 @@ const validBpm = v => { const n = num(v); return n && n >= 35 && n <= 240 ? Math
 /* Analyse des BPM d'une séance par rapport à la recommandation. */
 function hrFeedback(code, avg, mx) {
   const hp = hrProfile(), t = HR_TARGET[code] || HR_TARGET.A;
-  if (!hp) return `<p class="callout">Ajoute ton âge et ton sexe dans Profil pour comparer tes BPM à ta zone conseillée.</p>`;
+  if (!hp) return `<p class="callout">Choisis ton sexe et indique ton âge dans Profil pour comparer tes BPM à ta zone conseillée.</p>`;
   const lo = Math.round(hp.max * t.avg[0] / 100), hi = Math.round(hp.max * t.avg[1] / 100), capBpm = Math.round(hp.max * t.max / 100);
   let out = `<p class="hr-target">Conseillé pour cette séance : <strong>${lo} à ${hi} bpm</strong> en moyenne (${t.avg[0]} à ${t.avg[1]} % de ta FC max de ${hp.max}), pointes jusqu'à ${capBpm} bpm. ${t.why}</p>`;
   const msgs = [];
@@ -542,6 +597,7 @@ function renderToday() {
   const month = sessionsBetween(monthStart, new Date(now.getFullYear(), now.getMonth() + 1, 1));
 
   el.innerHTML = `
+    ${identityBanner()}
     ${hero}
     ${isDeload() ? '<p class="callout">Semaine 4 du cycle : semaine allégée. Une série de moins par exercice pour bien récupérer.</p>' : ''}
     <section class="panel">
@@ -568,6 +624,7 @@ function renderToday() {
   $$('[data-start]', el).forEach(b => b.addEventListener('click', () => startSession(b.dataset.start)));
   $$('[data-session]', el).forEach(b => b.addEventListener('click', () => openSession(b.dataset.session)));
   $$('[data-reroll]', el).forEach(b => b.addEventListener('click', () => rerollSession(b.dataset.reroll)));
+  $$('[data-complete-id]', el).forEach(b => b.addEventListener('click', openIdentitySheet));
 }
 
 /* ================= Séance en cours ================= */
@@ -1324,7 +1381,7 @@ function openSession(id) {
 /* ================= Profil ================= */
 function hrZonesHTML() {
   const hp = hrProfile();
-  if (!hp) return '<p class="muted small">Indique ton âge pour calculer ta fréquence cardiaque maximale et tes zones. Ces infos servent aussi pour la nutrition.</p>';
+  if (!hp) return '<p class="muted small">Choisis ton sexe et indique ton âge dans la section « Toi » : la fréquence cardiaque maximale et les zones se calculent à partir de là.</p>';
   return `<p class="hr-max"><strong>${hp.max} bpm</strong> FC max théorique <span class="muted small">(${hp.formula}, ${hp.age} ans)</span></p>
     <div class="zones">${HR_ZONES.map(z => `<div class="zone zone--${z.n}"><span class="zone__n">Z${z.n}</span><span class="zone__txt"><strong>${z.label}</strong> <span class="muted small">${z.desc}</span></span><span class="zone__bpm">${zoneBpm(z, hp.max)}</span></div>`).join('')}</div>
     <p class="muted small">Cible pendant tes séances : zones 2 et 3 en moyenne, zone 1 ou 2 pour la récupération. La formule est une estimation à plus ou moins 10 bpm : si ta montre mesure régulièrement plus haut, c'est que ta vraie FC max est plus élevée.</p>`;
@@ -1334,9 +1391,11 @@ function renderProfile() {
   const el = $('#view-profile'), p = state.profile;
   el.innerHTML = `
     <h1 class="page-title">Profil</h1>
-    <section class="panel form">
+    <section class="panel form" id="id-section">
+      <h2>Toi</h2>
       <label class="field"><span>Prénom</span><input id="p-name" value="${esc(p.name)}" autocomplete="given-name"></label>
-      <label class="field"><span>Taille (cm)</span><input id="p-height" inputmode="decimal" value="${esc(p.height)}" placeholder="188"></label>
+      ${identityHTML('p')}
+      <p class="id-status" id="id-status"></p>
     </section>
 
     <section class="panel form">
@@ -1385,11 +1444,7 @@ function renderProfile() {
     </section>
 
     <section class="panel form" id="hr-section">
-      <h2>Âge, sexe et zones cardiaques</h2>
-      <div class="grid-2 grid-2--age">
-        <label class="field"><span>Âge</span><input id="p-age" inputmode="numeric" value="${esc(state.nutrition.age)}" placeholder="30"></label>
-        <div class="field"><span>Sexe</span><div class="seg" role="group" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" data-psex="${k}" aria-pressed="${state.nutrition.sex === k}">${l}</button>`).join('')}</div></div>
-      </div>
+      <h2>Zones cardiaques</h2>
       <div id="hr-zones">${hrZonesHTML()}</div>
     </section>
 
@@ -1423,7 +1478,6 @@ function renderProfile() {
   };
   preview();
   $('#p-name').oninput = e => { p.name = e.target.value.trim(); save(); };
-  $('#p-height').oninput = e => { p.height = num(e.target.value) ?? ''; save(); };
   $('#p-match').onchange = e => { p.matchDay = e.target.value === '' ? null : +e.target.value; save(); preview(); };
   $('#p-cycle').onchange = e => { if (e.target.value) { p.cycleStart = e.target.value; save(); renderProfile(); } };
   $('#p-wmachine').onchange = e => { p.warmupMachine = e.target.value; save(); };
@@ -1431,12 +1485,14 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
-  $('#p-age').oninput = e => { state.nutrition.age = num(e.target.value) ?? ''; save(); $('#hr-zones').innerHTML = hrZonesHTML(); };
-  $$('[data-psex]', el).forEach(b => b.onclick = () => {
-    state.nutrition.sex = b.dataset.psex; save();
-    $$('[data-psex]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const idStatus = () => {
+    const m = identityMissing(), hp = hrProfile();
+    $('#id-status').innerHTML = m.length
+      ? `<span class="warn-dot"></span>Il manque : <strong>${listFr(m)}</strong>. Les calculs restent désactivés tant que ce n'est pas rempli.`
+      : `<span class="ok-dot"></span>${state.nutrition.sex === 'f' ? 'Femme' : 'Homme'}, ${num(state.nutrition.age)} ans, ${num(p.height)} cm${hp ? ` : FC max ${hp.max} bpm` : ''}.`;
     $('#hr-zones').innerHTML = hrZonesHTML();
-  });
+  };
+  bindIdentity(el, 'p', idStatus); idStatus();
   $$('[data-level]', el).forEach(b => b.onclick = () => {
     p.level = b.dataset.level; save();
     $$('[data-level]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1520,7 +1576,7 @@ function isTrainingDay(d = new Date()) {
 }
 function needs(trainingDay) {
   const n = state.nutrition, w = currentWeight(), h = num(state.profile.height), age = num(n.age);
-  if (!w || !h || !age) return null;
+  if (!w || !h || !age || !['h', 'f'].includes(n.sex)) return null;
   const bmr = 10 * w + 6.25 * h - 5 * age + (n.sex === 'f' ? -161 : 5);
   const sessions = state.profile.gymDays.length + (state.profile.matchDay != null ? 1 : 0);
   const factor = sessions <= 2 ? 1.45 : sessions === 3 ? 1.55 : sessions === 4 ? 1.62 : 1.7;
@@ -1542,16 +1598,15 @@ function renderNutrition() {
   const objKey = n.objective === 'auto' ? autoObjective() : n.objective;
   const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
 
-  const setup = `<section class="panel form">
-      <h2>Tes infos</h2>
-      <p class="muted small">Pour calculer tes besoins, l'app utilise ton dernier poids (Progrès), ta taille (Profil) et ces deux infos.</p>
-      <div class="grid-2 grid-2--age">
-        <label class="field"><span>Âge</span><input id="n-age" inputmode="numeric" value="${esc(n.age)}" placeholder="30"></label>
-        <div class="field"><span>Sexe</span><div class="seg" role="group" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" data-sex="${k}" aria-pressed="${n.sex === k}">${l}</button>`).join('')}</div></div>
-      </div>
-      ${!currentWeight() ? '<p class="callout">Ajoute ton poids dans Progrès pour activer le calcul.</p>' : ''}
-      ${!num(state.profile.height) ? '<p class="callout">Ajoute ta taille dans Profil pour activer le calcul.</p>' : ''}
-    </section>`;
+  const miss = identityMissing();
+  const setup = miss.length || !currentWeight()
+    ? `<section class="panel form">
+        <h2>Pour calculer tes besoins</h2>
+        ${miss.length ? `<p>Il manque ton <strong>${listFr(miss)}</strong>.</p>` : ''}
+        ${!currentWeight() ? '<p>Il manque ton <strong>poids</strong> : ajoute une mesure dans Progrès.</p>' : ''}
+        <button class="btn btn--block" type="button" data-complete-id>Compléter mon profil</button>
+      </section>`
+    : `<p class="muted small id-summary">Calcul basé sur : ${state.nutrition.sex === 'f' ? 'femme' : 'homme'}, ${num(state.nutrition.age)} ans, ${num(state.profile.height)} cm, ${fmtNum(currentWeight())} kg. <button class="link" type="button" data-goto-profile>Modifier</button></p>`;
 
   el.innerHTML = `
     <h1 class="page-title">Nutrition</h1>
@@ -1634,9 +1689,8 @@ function renderNutrition() {
     dayLog().entries.push({ id: Date.now(), name, p, kcal });
     save(); toast(`${name} ajouté : ${p} g de protéines.`); renderNutrition();
   };
-  $('#n-age', el).oninput = e => { n.age = num(e.target.value) ?? ''; save(); };
-  $('#n-age', el).onchange = () => renderNutrition();
-  $$('[data-sex]', el).forEach(b => b.onclick = () => { n.sex = b.dataset.sex; save(); renderNutrition(); });
+  $$('[data-complete-id]', el).forEach(b => b.onclick = openIdentitySheet);
+  $$('[data-goto-profile]', el).forEach(b => b.onclick = () => go('profile'));
   $$('[data-obj]', el).forEach(b => b.onclick = () => { n.objective = b.dataset.obj; save(); renderNutrition(); });
   $$('[data-moment]', el).forEach(b => b.onclick = () => {
     mealMoment = b.dataset.moment;
@@ -1688,7 +1742,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '13';
+const APP_VERSION = '14';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
@@ -1701,3 +1755,4 @@ if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.
 }
 
 render();
+if (identityMissing().length && !state.active) setTimeout(openIdentitySheet, 400);
