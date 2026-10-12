@@ -297,7 +297,7 @@ function go(v) {
 }
 function render() {
   if (!state.active) resolveSessions();
-  ({ today: renderToday, program: renderProgram, nutrition: renderNutrition, progress: renderProgress, profile: renderProfile })[view]();
+  ({ today: renderToday, program: renderProgram, muscles: renderMuscles, nutrition: renderNutrition, progress: renderProgress, profile: renderProfile })[view]();
   const banner = $('#resume');
   banner.hidden = !(state.active && view !== 'today');
   if (!banner.hidden) banner.querySelector('span').textContent = `Séance en cours : ${SESSIONS[state.active.code].name}`;
@@ -328,14 +328,14 @@ function closeSheet() {
   const w = $('.sheet-wrap');
   if (!w) return;
   w.remove();
-  document.body.classList.remove('has-sheet');
+  if (!$('#focus')) document.body.classList.remove('has-sheet');
   if (sheetCleanup) { const c = sheetCleanup; sheetCleanup = null; c(); }
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 
 /* ================= Fiche exercice ================= */
 function exThumb(id, cls = '') {
-  return `<span class="thumb ${cls}">${FIG.svg(EX[id].fig, 'Illustration : ' + EX[id].name)}</span>`;
+  return `<span class="thumb ${cls}">${FIG.svg(EX[id].fig, 'Illustration : ' + EX[id].name, EX[id].target)}</span>`;
 }
 function loadTableHTML(id) {
   const last = lastSetsFor(id).filter(x => num(x.kg));
@@ -385,7 +385,7 @@ function openExercise(id) {
     if (state.active && view === 'today') state.active.items.forEach((x, i) => { if (x.ex === id) rerenderItem(i); });
   } });
   $('#ex-note', body).oninput = ev => { const v = ev.target.value.trim(); if (v) state.exNotes[id] = v; else delete state.exNotes[id]; save(); };
-  anim = FIG.mount($('#anim-fig'), e.fig, { label: 'Animation : ' + e.name, onPhase: t => { const el = $('#anim-phase'); if (el) el.textContent = t; } });
+  anim = FIG.mount($('#anim-fig'), e.fig, { label: 'Animation : ' + e.name, target: e.target, onPhase: t => { const el = $('#anim-phase'); if (el) el.textContent = t; } });
   $$('[data-anim]', body).forEach(b => b.onclick = () => {
     anim.set(b.dataset.anim);
     $$('[data-anim]', body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -712,6 +712,7 @@ function renderWorkout(el) {
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
     </header>
+    <button class="focus-cta" type="button" id="focus-open" style="--sess:${s.color}">${ICON.play}<span><strong>Mode focus</strong><br><span class="small">Un exercice à la fois, grande animation, chrono de repos</span></span></button>
     ${isDeload() ? '<p class="callout">Semaine allégée : une série de moins.</p>' : ''}
     <div id="wk-items">${a.items.map((it, i) => itemHTML(it, i)).join('')}</div>
     <button class="btn btn--quiet btn--block" id="abandon" type="button">Annuler la séance</button>`;
@@ -726,6 +727,7 @@ function renderWorkout(el) {
   $('#finish').onclick = openFinish;
   $('#abandon').onclick = cancelSession;
   $('#cancel-top').onclick = cancelSession;
+  $('#focus-open').onclick = () => openFocus();
 }
 
 /* Charge de départ selon le poids de corps et le niveau de force. */
@@ -851,9 +853,14 @@ function onWorkoutClick(e) {
 function toggleSet(i, k) {
   const a = state.active, it = a.items[i], st = it.sets[k];
   st.done = !st.done;
+  st.t = st.done ? Date.now() : null;
   if (st.done) {
     const row = $(`#row-${i}-${k}`);
-    if (row) $$('input', row).forEach(inp => { if (!inp.value && inp.placeholder) { inp.value = inp.placeholder; st[inp.dataset.f] = inp.placeholder; } });
+    if (row) $$('input', row).forEach(inp => {
+      const f = inp.dataset.f;
+      if (st[f]) inp.value = st[f];
+      else if (!inp.value && inp.placeholder) { inp.value = inp.placeholder; st[f] = inp.placeholder; }
+    });
   }
   save();
   if (it.kind === 'warmup' || it.kind === 'time') return rerenderItem(i);
@@ -897,6 +904,7 @@ function openSwap(i) {
     it.sets.forEach(s => { s.kg = ''; s.reps = ''; s.sec = ''; s.done = false; });
     if (id === original) delete state.swaps[key]; else state.swaps[key] = id;
     save(); closeSheet(); rerenderItem(i);
+    if ($('#focus')) drawFocus();
     toast(`Remplacé par ${EX[id].name}.`);
   });
 }
@@ -980,6 +988,7 @@ function tick() {
   const left = Math.max(0, Math.ceil((timer.end - Date.now()) / 1000));
   $('#timer-time').textContent = fmtClock(left);
   $('#timer-progress').style.width = `${100 - (left / timer.total) * 100}%`;
+  focusTick(left, timer.total);
   if (left <= 0) {
     clearInterval(timerInt);
     $('#timer').classList.add('is-done');
@@ -987,6 +996,7 @@ function tick() {
     if (state.profile.sound) beep();
     if (state.profile.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200]);
     const cb = timer.onDone; timer = null;
+    focusTick(0, 1, true);
     if (cb) cb();
     setTimeout(() => { if (!timer) $('#timer').hidden = true; }, 3500);
   }
@@ -1014,9 +1024,227 @@ function beep() {
 }
 function tickElapsed() {
   const el = $('#elapsed');
+  const fe = $('#f-elapsed');
+  if (fe && state.active) fe.textContent = fmtClock(Math.floor((Date.now() - state.active.start) / 1000));
   if (el && state.active) el.textContent = fmtClock(Math.floor((Date.now() - state.active.start) / 1000)).replace(/^(\d+):/, (m, h) => h >= 60 ? `${Math.floor(h / 60)}:${pad(h % 60)}:` : m);
 }
 setInterval(tickElapsed, 1000);
+
+
+/* ================= Mode focus : un exercice à la fois ================= */
+let focusIdx = 0, focusAnim = null;
+const GROUPS = [
+  { k: 'pectoraux', label: 'Pectoraux', m: ['pectoraux'], side: 'front', crop: 'upper' },
+  { k: 'dos', label: 'Dos', m: ['dorsaux', 'trapezes', 'lombaires'], side: 'back', crop: 'upper' },
+  { k: 'epaules', label: 'Épaules', m: ['deltoides', 'deltoides-arr', 'coiffe'], side: 'front', crop: 'upper' },
+  { k: 'bras', label: 'Bras', m: ['biceps', 'triceps'], side: 'front', crop: 'upper' },
+  { k: 'abdos', label: 'Abdominaux', m: ['abdos', 'obliques'], side: 'front', crop: 'torso' },
+  { k: 'cuisses', label: 'Cuisses', m: ['quadriceps', 'ischios', 'adducteurs'], side: 'front', crop: 'lower' },
+  { k: 'fessiers', label: 'Fessiers', m: ['fessiers', 'abducteurs'], side: 'back', crop: 'hips' },
+  { k: 'mollets', label: 'Mollets', m: ['mollets'], side: 'back', crop: 'calves' }
+];
+const groupOf = e => GROUPS.find(g => (e?.target?.p || []).some(m => g.m.includes(m)));
+const ring = (pct, inner, label, id = '') => `<div class="ring" ${id ? `id="${id}"` : ''}>
+    <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring__bg" cx="40" cy="40" r="34"/><circle class="ring__fg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="${(213.6 * (1 - pct)).toFixed(1)}"/></svg>
+    <span class="ring__v">${inner}</span><span class="ring__l">${label}</span></div>`;
+function kgStep(id, kg) { const k = LOADS[id]?.[1]; return k === 'stack' ? 5 : k === 'cable' && kg < 10 ? 1.25 : 2.5; }
+
+function openFocus(i) {
+  const a = state.active; if (!a) return;
+  const first = a.items.findIndex(it => !it.sets.every(x => x.done));
+  focusIdx = i ?? Math.max(0, first);
+  let ov = $('#focus');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'focus'; ov.className = 'focus';
+    ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true'); ov.setAttribute('aria-label', 'Mode focus');
+    document.body.appendChild(ov);
+  }
+  document.body.classList.add('has-sheet', 'has-focus');
+  drawFocus();
+}
+function closeFocus() {
+  focusAnim?.stop(); focusAnim = null;
+  $('#focus')?.remove();
+  document.body.classList.remove('has-sheet', 'has-focus');
+  if (state.active && view === 'today') renderWorkout($('#view-today'));
+}
+function focusTick(left, total, done) {
+  const r = $('#f-rest'); if (!r) return;
+  const fg = $('.ring__fg', r), v = $('.ring__v', r);
+  if (done) { v.textContent = 'Go'; fg.setAttribute('stroke-dashoffset', '0'); r.classList.add('is-go'); return; }
+  r.classList.remove('is-go');
+  v.textContent = fmtClock(left);
+  fg.setAttribute('stroke-dashoffset', (213.6 * (1 - left / total)).toFixed(1));
+}
+function drawFocus() {
+  const a = state.active, ov = $('#focus');
+  if (!a || !ov) return closeFocus();
+  focusAnim?.stop();
+  const it = a.items[focusIdx], e = EX[it.ex], n = a.items.length, s = SESSIONS[a.code];
+  const grp = it.kind === 'warmup' ? 'Échauffement' : it.cooldown ? 'Retour au calme' : groupOf(e)?.label || e.zone;
+  const isTime = it.kind === 'warmup' || it.kind === 'time';
+  const firstOpen = it.sets.findIndex(x => !x.done), allDone = firstOpen < 0, cur = allDone ? it.sets.length - 1 : firstOpen;
+  const st = it.sets[cur], f = it.kind === 'hold' ? 'sec' : 'reps';
+  const sug = isTime ? null : suggestFor(it), prev = lastSetsFor(it.ex), pv = prev[cur] || prev[prev.length - 1];
+  const kgVal = st.kg || (sug ? String(sug.kg) : (pv?.kg ?? ''));
+  const repVal = st[f] || (pv?.[f] ?? targetNum(it));
+  const doneN = it.sets.filter(x => x.done).length;
+  const doneSets = it.sets.map((x, j) => ({ ...x, j })).filter(x => x.done).reverse();
+
+  ov.innerHTML = `
+    <header class="focus__top">
+      <button class="icon-btn" type="button" data-fclose aria-label="Revenir à la liste">${ICON.left}</button>
+      <p><strong>${focusIdx + 1}/${n}</strong> ${esc(grp)}</p>
+      <span class="clock" id="f-elapsed">0:00</span>
+    </header>
+    <div class="focus__body">
+      <div class="focus__stage">
+        <div id="f-anim" class="focus__fig"></div>
+        <div class="focus__tools">
+          ${!isTime && (e.alt?.length || TEMPLATE[a.code]?.items[it.slot]?.pool?.length > 1) ? `<button class="tool" type="button" data-fswap aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
+          <button class="tool" type="button" data-finfo aria-label="Comment faire">i</button>
+        </div>
+      </div>
+      <h2 class="focus__name">${esc(e.name)}</h2>
+      ${primaryText(e) ? `<p class="focus__mus">${esc(primaryText(e))}</p>` : ''}
+      ${e.loaded && sug ? `<p class="focus__rec">${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} conseillée : <strong>${fmtKg(sug.kg)} kg</strong>${sug.up ? ' <span class="pill pill--sm">progression</span>' : ''}</p>` : ''}
+      ${state.exNotes[it.ex] ? `<p class="wx__note">Mes réglages : ${esc(state.exNotes[it.ex])}</p>` : ''}
+      ${isTime ? `
+        <div class="rings">${ring(it.sets[0].done ? 1 : 0, `${it.minutes}`, 'minutes')}${ring(1, fmtClock(0), 'Chrono', 'f-rest')}</div>
+        <div class="btn-row"><button class="btn btn--ghost" type="button" data-frun style="flex:1">${ICON.play} Lancer ${it.minutes} min</button></div>
+        <button class="btn btn--block btn--big" type="button" data-fvalid style="background:${s.color}" ${it.sets[0].done ? 'disabled' : ''}>${it.sets[0].done ? 'Fait' : 'C\'est fait'}</button>`
+      : `
+        <div class="rings">
+          ${ring(1, esc(repVal), it.kind === 'hold' ? 'secondes' : 'répétitions')}
+          ${ring(1, fmtClock(it.rest), 'repos', 'f-rest')}
+          ${ring(doneN / it.sets.length, `${doneN}/${it.sets.length}`, 'séries')}
+        </div>
+        <div class="focus__inputs">
+          ${e.loaded ? `<div class="stepper2"><button type="button" data-fkg="-1" aria-label="Moins lourd">−</button><label><input id="f-kg" inputmode="decimal" value="${esc(kgVal)}" aria-label="Charge en kg"><small>kg</small></label><button type="button" data-fkg="1" aria-label="Plus lourd">+</button></div>` : ''}
+          <div class="stepper2"><button type="button" data-frep="-1" aria-label="Moins">−</button><label><input id="f-rep" inputmode="numeric" value="${esc(repVal)}" aria-label="${f === 'sec' ? 'Secondes' : 'Répétitions'}"><small>${f === 'sec' ? 'sec' : 'rép.'}</small></label><button type="button" data-frep="1" aria-label="Plus">+</button></div>
+        </div>
+        ${it.kind === 'hold' && !allDone ? `<button class="btn btn--ghost btn--block" type="button" data-fhold>${ICON.play} Chrono ${it.hold} s</button>` : ''}
+        <button class="btn btn--block btn--big" type="button" data-fvalid style="background:${s.color}" ${allDone ? 'disabled' : ''}>${allDone ? 'Exercice terminé' : `Valider la série ${cur + 1}`}</button>
+        ${allDone ? '' : `<button class="btn btn--quiet btn--block" type="button" data-faddset>+ Ajouter une série</button>`}
+        ${doneSets.length ? `<ol class="focus__log">${doneSets.map(x => `<li><span>N°${x.j + 1}</span><span>${e.loaded && num(x.kg) ? `${fmtKg(num(x.kg))} kg × ` : ''}${x[f]} ${f === 'sec' ? 's' : 'rép.'}</span><time>${x.t ? fmtTime(new Date(x.t).toISOString()) : ''}</time></li>`).join('')}</ol>` : ''}`}
+    </div>
+    <nav class="focus__nav">
+      <button class="btn btn--ghost" type="button" data-fprev ${focusIdx === 0 ? 'disabled' : ''}>${ICON.left} Précédent</button>
+      <button class="btn" type="button" data-fnext style="background:${s.color}">${focusIdx === n - 1 ? 'Terminer la séance' : 'Suivant'} ${ICON.right}</button>
+    </nav>`;
+
+  focusAnim = FIG.mount($('#f-anim', ov), e.fig, { label: 'Animation : ' + e.name, target: e.target });
+  if (timer) focusTick(Math.max(0, Math.ceil((timer.end - Date.now()) / 1000)), timer.total);
+  tickElapsed();
+
+  const readInputs = () => {
+    if ($('#f-kg', ov)) st.kg = $('#f-kg', ov).value.replace(',', '.');
+    if ($('#f-rep', ov)) st[f] = $('#f-rep', ov).value;
+    save();
+  };
+  ov.onclick = ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const d = b.dataset;
+    if ('fclose' in d) return closeFocus();
+    if ('finfo' in d) return openExercise(it.ex);
+    if ('fswap' in d) return openSwap(focusIdx);
+    if ('fprev' in d) { focusIdx = Math.max(0, focusIdx - 1); return drawFocus(); }
+    if ('fnext' in d) { if (focusIdx === n - 1) { closeFocus(); return openFinish(); } focusIdx++; return drawFocus(); }
+    if (d.fkg) { const inp = $('#f-kg', ov), v = num(inp.value) || 0, stp = kgStep(it.ex, v); inp.value = String(Math.max(0, +(v + stp * +d.fkg).toFixed(2))); return readInputs(); }
+    if (d.frep) { const inp = $('#f-rep', ov), v = num(inp.value) || 0; inp.value = String(Math.max(1, v + +d.frep)); readInputs(); $('.rings .ring__v', ov).textContent = inp.value; return; }
+    if ('faddset' in d) { it.sets.push({ kg: '', reps: '', sec: '', done: false }); save(); return drawFocus(); }
+    if ('frun' in d) return startTimer(it.minutes * 60, e.name, () => { if (state.active === a) { it.sets[0].done = true; it.sets[0].t = Date.now(); save(); if ($('#focus')) drawFocus(); } });
+    if ('fhold' in d) return startTimer(it.hold, `${e.name}, tiens bon`);
+    if ('fvalid' in d) {
+      if (isTime) { it.sets[0].done = true; it.sets[0].t = Date.now(); save(); }
+      else { readInputs(); toggleSet(focusIdx, cur); }
+      const finished = it.sets.every(x => x.done);
+      if (finished && focusIdx < n - 1) { toast(`${e.name} terminé. Exercice suivant !`); focusIdx++; }
+      return drawFocus();
+    }
+  };
+  ov.oninput = ev => { if (ev.target.id === 'f-kg' || ev.target.id === 'f-rep') readInputs(); };
+}
+
+/* ================= Muscles : groupes et zones ciblées ================= */
+let musMode = 'groupes', musGroup = null, musPeriod = 'semaine';
+function renderMuscles() {
+  const el = $('#view-muscles');
+  const head = `<h1 class="page-title">Muscles</h1>
+    <div class="seg seg--wide" role="tablist">${[['groupes', 'Par groupe'], ['zones', 'Zones ciblées']].map(([k, l]) =>
+      `<button type="button" data-mmode="${k}" aria-pressed="${k === musMode}">${l}</button>`).join('')}</div>`;
+  if (musMode === 'zones') renderZones(el, head);
+  else if (musGroup) renderGroup(el, musGroup);
+  else renderGroups(el, head);
+  $$('[data-mmode]', el).forEach(b => b.onclick = () => { musMode = b.dataset.mmode; musGroup = null; renderMuscles(); });
+}
+const exOfGroup = (g, which = 'p') => Object.entries(EX).filter(([, e]) => (e.target?.[which] || []).some(m => g.m.includes(m))).map(([id]) => id);
+function renderGroups(el, head) {
+  el.innerHTML = `${head}
+    <div class="groups">${GROUPS.map(g => `
+      <button class="group-card" type="button" data-group="${g.k}">
+        <span class="group-card__txt"><strong>${g.label}</strong><span>${exOfGroup(g).length} exercices</span></span>
+        <span class="group-card__fig">${FIG.muscleFigure(g.side, { p: g.m }, g.crop, null, g.label)}</span>
+      </button>`).join('')}
+      <button class="group-card group-card--plain" type="button" data-group="cardio"><span class="group-card__txt"><strong>Cardio et récupération</strong><span>${Object.values(EX).filter(e => e.zone === 'Cardio' || e.zone === 'Étirements').length} exercices</span></span><span class="group-card__fig">${exThumb('tapis')}</span></button>
+    </div>`;
+  $$('[data-group]', el).forEach(b => b.onclick = () => { musGroup = b.dataset.group; renderMuscles(); window.scrollTo(0, 0); });
+}
+function renderGroup(el, key) {
+  const g = GROUPS.find(x => x.k === key);
+  const main = g ? exOfGroup(g, 'p') : Object.keys(EX).filter(id => ['Cardio', 'Étirements'].includes(EX[id].zone));
+  const also = g ? exOfGroup(g, 's').filter(id => !main.includes(id)) : [];
+  const row = id => `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span class="row__main"><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${esc(EX[id].equip)}</span></span>${ICON.right}</button>`;
+  el.innerHTML = `
+    <button class="btn btn--quiet" type="button" id="grp-back">${ICON.left} Tous les groupes</button>
+    <section class="group-hero">
+      <div><h1 class="page-title">${g ? g.label : 'Cardio et récupération'}</h1>${g ? `<p>${g.m.map(m => MUSCLES[m]).join(', ')}</p>` : ''}</div>
+      ${g ? `<div class="group-hero__fig">${FIG.muscleFigure(g.side, { p: g.m }, 'full', null, g.label)}</div>` : ''}
+    </section>
+    <section class="panel"><h2>Exercices principaux</h2><div class="list">${main.map(row).join('')}</div></section>
+    ${also.length ? `<section class="panel"><h2>Travaillent aussi ${g.label.toLowerCase()}</h2><div class="list">${also.map(row).join('')}</div></section>` : ''}`;
+  $('#grp-back', el).onclick = () => { musGroup = null; renderMuscles(); };
+  $$('[data-ex]', el).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
+}
+function periodSessions(p) {
+  if (p === 'derniere') return state.history.slice(0, 1);
+  const since = p === 'semaine' ? Date.now() - 7 * 864e5 : p === 'mois' ? Date.now() - 30 * 864e5 : 0;
+  return state.history.filter(h => +new Date(h.date) >= since);
+}
+function renderZones(el, head) {
+  const list = periodSessions(musPeriod), count = {};
+  for (const h of list) for (const it of h.items || []) {
+    const e = EX[it.ex]; if (!e || it.kind === 'warmup' || it.kind === 'time') continue;
+    const n = (it.sets || []).filter(x => x.done).length;
+    (e.target?.p || []).forEach(m => count[m] = (count[m] || 0) + n);
+    (e.target?.s || []).forEach(m => count[m] = (count[m] || 0) + n / 2);
+  }
+  const total = Object.values(count).reduce((a, b) => a + b, 0), max = Math.max(0, ...Object.values(count));
+  const levels = Object.fromEntries(Object.entries(count).map(([k, v]) => [k, v >= max * .66 ? 3 : v >= max * .33 ? 2 : 1]));
+  const ranked = Object.entries(count).sort((a, b) => b[1] - a[1]);
+  const missing = Object.keys(MUSCLES).filter(k => !count[k]);
+  el.innerHTML = `${head}
+    <h2 class="sub">Focus sur les zones ciblées</h2>
+    <div class="seg" role="group" aria-label="Période">${[['derniere', 'Dernière'], ['semaine', 'Semaine'], ['mois', 'Mois'], ['tout', 'Tout']].map(([k, l]) =>
+      `<button type="button" data-period="${k}" aria-pressed="${k === musPeriod}">${l}</button>`).join('')}</div>
+    ${total ? `
+    <section class="panel zones-map">
+      <div class="zones-map__figs">
+        <div>${FIG.muscleFigure('front', {}, 'full', levels, 'Face')}<p>Face</p></div>
+        <div>${FIG.muscleFigure('back', {}, 'full', levels, 'Dos')}<p>Dos</p></div>
+      </div>
+      <p class="heat"><span class="heat__sw l1"></span>peu<span class="heat__sw l2"></span>moyen<span class="heat__sw l3"></span>beaucoup</p>
+    </section>
+    <section class="panel">
+      <div class="panel__head"><h2>Répartition du travail</h2><span class="muted small">${plural(list.length, 'séance')}</span></div>
+      <div class="share">${ranked.map(([k, v]) => `<div class="share__row"><span class="share__pct">${Math.round(v / total * 100)} %</span><span class="share__name">${MUSCLES[k]}</span><span class="share__bar"><span style="width:${v / max * 100}%"></span></span></div>`).join('')}</div>
+      <p class="muted small">Part des séries travaillant chaque muscle (muscle principal 1 série, secondaire une demi-série).</p>
+    </section>
+    ${missing.length ? `<p class="callout"><strong>Pas travaillés sur la période :</strong> ${missing.map(k => MUSCLES[k].toLowerCase()).join(', ')}.</p>` : ''}`
+    : `<p class="empty">Aucune séance sur cette période. Termine une séance pour voir quels muscles tu as travaillés.</p>`}`;
+  $$('[data-period]', el).forEach(b => b.onclick = () => { musPeriod = b.dataset.period; renderMuscles(); });
+}
 
 /* ================= Programme ================= */
 let progMode = 'plan';
@@ -1742,7 +1970,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '14';
+const APP_VERSION = '15';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

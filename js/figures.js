@@ -133,12 +133,54 @@ const FIG = (() => {
     return (f._trail = s);
   }
 
-  function body(J, cls, act, f) {
-    const L = (a, b, extra = '') => ln(J[a], J[b], 'limb' + extra + (act && act.has(a + '-' + b) ? ' act' : ''));
-    const eye = f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 2.6, 'eye') : '';
+  /* Corps plein façon planche anatomique : volumes arrondis, reflet de lumière,
+     muscles ciblés en corail (principaux) et corail clair (secondaires). */
+  const SEG_MUSCLES = {
+    arm: ['biceps', 'triceps'], fore: [], thigh: ['quadriceps', 'ischios', 'adducteurs'], shin: ['mollets'],
+    chest: ['pectoraux', 'dorsaux', 'trapezes'], belly: ['abdos', 'obliques', 'lombaires'],
+    shoulder: ['deltoides', 'deltoides-arr', 'coiffe'], glute: ['fessiers', 'abducteurs']
+  };
+  function musCls(part, tgt) {
+    if (!tgt) return '';
+    const list = SEG_MUSCLES[part];
+    if (list.some(m => tgt.p.has(m))) return ' mus-p';
+    if (list.some(m => tgt.s.has(m))) return ' mus-s';
+    return '';
+  }
+  function capsule(a, b, w, cls) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    let nx = -dy / L, ny = dx / L; if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; }
+    const o = w * 0.2, a2 = [a[0] + nx * o, a[1] + ny * o], b2 = [b[0] + nx * o, b[1] + ny * o];
+    return `<line class="seg${cls}" stroke-width="${w}" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}"/>` +
+      `<line class="seg-hi" stroke-width="${(w * 0.28).toFixed(1)}" x1="${f1(a2[0])}" y1="${f1(a2[1])}" x2="${f1(b2[0])}" y2="${f1(b2[1])}"/>`;
+  }
+  function torso(J, tgt) {
+    const h = J.hip, s0 = J.sh, dx = s0[0] - h[0], dy = s0[1] - h[1], L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L, m = [h[0] + dx * .55, h[1] + dy * .55];
+    const P = (c, w) => [[c[0] + nx * w, c[1] + ny * w], [c[0] - nx * w, c[1] - ny * w]];
+    const [h1, h2] = P(h, 7.5), [m1, m2] = P(m, 9), [s1, s2] = P(s0, 11);
+    const poly = (pts, cls) => `<polygon class="tor${cls}" points="${pts.map(q => f1(q[0]) + ',' + f1(q[1])).join(' ')}"/>`;
+    return poly([h1, m1, m2, h2], musCls('belly', tgt)) + poly([m1, s1, s2, m2], musCls('chest', tgt));
+  }
+  function body(J, cls, act, f, tgt) {
+    const useAct = !tgt;
+    const A = (a, b) => useAct && act && act.has(a + '-' + b) ? ' mus-p' : '';
+    const eye = f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 2.2, 'eye') : '';
+    const back = dir(J.t - 90, -5);
+    const glute = add(J.hip, back);
+    const arm = i => capsule(J.sh, J['e' + i], 9, (tgt ? musCls('arm', tgt) : A('sh', 'e' + i))) + capsule(J['e' + i], J['w' + i], 7, A('e' + i, 'w' + i)) + circ(J['w' + i], 3.6, 'hand');
+    const leg = i => capsule(J.hip, J['k' + i], 13, (tgt ? musCls('thigh', tgt) : A('hip', 'k' + i))) + capsule(J['k' + i], J['a' + i], 10, (tgt ? musCls('shin', tgt) : A('k' + i, 'a' + i))) + capsule(J['a' + i], J['t' + i], 5.5, '');
     return `<g class="${cls}">
-      <g class="far">${L('hip', 'k1')}${L('k1', 'a1')}${ln(J.a1, J.t1, 'limb foot')}${L('sh', 'e1')}${L('e1', 'w1')}</g>
-      <g class="near">${L('hip', 'sh', ' trunk')}${circ(J.head, 9, 'head')}${eye}${L('hip', 'k0')}${L('k0', 'a0')}${ln(J.a0, J.t0, 'limb foot')}${L('sh', 'e0')}${L('e0', 'w0')}</g>
+      <g class="far">${leg(1)}${arm(1)}</g>
+      <g class="near">
+        ${circ(glute, 8.5, 'tor' + musCls('glute', tgt))}
+        ${torso(J, tgt)}
+        ${capsule(J.sh, J.head, 6, '')}
+        ${circ(J.head, 9, 'head')}${eye}
+        ${leg(0)}
+        ${circ(J.sh, 6.5, 'tor' + musCls('shoulder', tgt))}
+        ${arm(0)}
+      </g>
     </g>`;
   }
 
@@ -164,12 +206,13 @@ const FIG = (() => {
     return s;
   }
 
-  function frame(f, phase, ghost) {
+  const tgtSet = t => t ? { p: new Set(t.p || []), s: new Set(t.s || []) } : null;
+  function frame(f, phase, ghost, tgt) {
     if (f.draw) return (ghost ? `<g class="ghost">${f.draw(0, false)}</g>` : '') + f.draw(uAt(f, phase), true);
     const J = solve(poseAt(f, phase));
     let g = trail(f);
-    if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost', null, f);
-    return g + propsBack(f, J) + body(J, '', activeSet(f), f) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`).join('');
+    if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost', null, f, null);
+    return g + propsBack(f, J) + body(J, '', activeSet(f), f, tgt) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`).join('');
   }
 
   function wrap(f, inner, label) {
@@ -584,22 +627,23 @@ const FIG = (() => {
   };
 
   /* ---------- API ---------- */
-  function svg(id, label) {
+  function svg(id, label, target) {
     const f = DEFS[id];
     if (!f) return '';
-    return wrap(f, frame(f, endPhase(f), !f.crank && !f.loop), label);
+    return wrap(f, frame(f, endPhase(f), !f.crank && !f.loop, tgtSet(target)), label);
   }
 
-  function mount(el, id, { label, onPhase } = {}) {
+  function mount(el, id, { label, onPhase, target } = {}) {
+    const tg = tgtSet(target);
     const f = DEFS[id];
     const noop = { stop() {}, set() {}, speed() { return 1; } };
     if (!el || !f) return noop;
-    el.innerHTML = wrap(f, frame(f, 0, false), label);
+    el.innerHTML = wrap(f, frame(f, 0, false, tg), label);
     const g = el.querySelector('.fig-live');
     const base = f.dur || 3400;
     let mode = 'play', slow = false, raf = null, acc = 0, last = null, lastLabel = '';
     const draw = ph => {
-      g.innerHTML = frame(f, ph, false);
+      g.innerHTML = frame(f, ph, false, tg);
       const t = phaseLabel(f, ph);
       if (onPhase && t !== lastLabel) { lastLabel = t; onPhase(t); }
     };
@@ -675,5 +719,13 @@ const FIG = (() => {
 
   const view = id => VIEWS[DEFS[id]?.view || 'side'];
   const hint = id => HINTS[id] || '';
-  return { svg, mount, muscles, view, hint, ids: Object.keys(DEFS) };
+  const CROPS = { full: [0, 0, 100, 182], upper: [12, 18, 76, 72], torso: [22, 28, 56, 64], lower: [18, 90, 64, 92], hips: [16, 74, 68, 66], calves: [20, 128, 60, 52] };
+  function muscleFigure(side, target, crop = 'full', levels = null, label = '') {
+    const P = new Set(target?.p || []), S = new Set(target?.s || []);
+    const cls = k => levels ? (levels[k] ? 'mm-l' + levels[k] : 'mm-n') : P.has(k) ? 'mm-p' : S.has(k) ? 'mm-s' : 'mm-n';
+    const vb = CROPS[crop] || CROPS.full;
+    return `<svg class="musclemap" viewBox="${vb.join(' ')}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">
+      <g class="mm-base">${SILHOUETTE}</g>${MAP[side].map(m => muscleShape(m, cls(m[0]))).join('')}</svg>`;
+  }
+  return { svg, mount, muscles, muscleFigure, view, hint, ids: Object.keys(DEFS) };
 })();
