@@ -501,3 +501,18 @@ textarea { min-height: 84px; resize: vertical; }
 .loads__kg { font: 800 1.5rem/1 var(--display); }
 .loads__lvl { font-size: .8rem; color: var(--muted); margin-top: 4px; }
 .loads__grid > div.on .loads__lvl { color: var(--court); font-weight: 600; }
+
+/* v13 : fréquence cardiaque */
+.hr-target { font-size: .92rem; line-height: 1.4; background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; }
+.hr-line { font-size: .92rem; line-height: 1.4; padding: 8px 12px; border-radius: var(--radius-sm); border-left: 4px solid var(--c); background: var(--surface-2); }
+.hr-line--ok { --c: var(--ball); } .hr-line--low { --c: var(--court); } .hr-line--high { --c: var(--danger); } .hr-line--info { --c: var(--muted); }
+#hr-fb { display: grid; gap: 6px; }
+.hr-max strong { font: 800 2rem var(--display); margin-right: 6px; }
+.zones { display: grid; gap: 4px; }
+.zone { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--zc) 16%, var(--surface)); }
+.zone__n { display: grid; place-items: center; height: 28px; border-radius: 8px; background: var(--zc); color: #fff; font: 800 1rem var(--display); }
+.zone__txt { line-height: 1.25; font-size: .92rem; }
+.zone__bpm { font: 700 1rem var(--display); white-space: nowrap; }
+.zone--1 { --zc: #7A9592; } .zone--2 { --zc: #1F6FA8; } .zone--3 { --zc: #0F7C78; } .zone--4 { --zc: #E08A2E; } .zone--5 { --zc: #C9402F; }
+.grid-2--age { grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); }
+.grid-2--age .seg button { padding: 0 6px; }

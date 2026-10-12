@@ -427,6 +427,67 @@ function weekMusclesHTML() {
   </section>`;
 }
 
+/* ================= Fréquence cardiaque =================
+   FC max théorique : Tanaka (208 − 0,7 × âge) chez l'homme, Gulati (206 − 0,88 × âge) chez la femme. */
+const HR_ZONES = [
+  { n: 1, from: 50, to: 60, label: 'Récupération', desc: 'Très facile, respiration calme.' },
+  { n: 2, from: 60, to: 70, label: 'Endurance', desc: 'Facile, tu peux parler normalement.' },
+  { n: 3, from: 70, to: 80, label: 'Aérobie', desc: 'Soutenu, phrases courtes.' },
+  { n: 4, from: 80, to: 90, label: 'Seuil', desc: 'Difficile, quelques mots seulement.' },
+  { n: 5, from: 90, to: 100, label: 'Maximum', desc: 'Effort très court, impossible de parler.' }
+];
+const HR_TARGET = {
+  A: { avg: [60, 75], max: 90, why: 'Séance de force : le cœur monte pendant les séries et redescend au repos.' },
+  B: { avg: [60, 75], max: 90, why: 'Séance de force : le cœur monte pendant les séries et redescend au repos.' },
+  C: { avg: [65, 80], max: 92, why: 'Séance plus dynamique avec du fractionné à la fin : pointes en zone 4 et 5 normales.' },
+  R: { avg: [50, 65], max: 75, why: 'Récupération : reste en zone 1 ou 2, sans forcer.' }
+};
+function hrProfile() {
+  const age = num(state.nutrition.age);
+  if (!age || age < 12 || age > 90) return null;
+  const female = state.nutrition.sex === 'f';
+  const max = Math.round(female ? 206 - 0.88 * age : 208 - 0.7 * age);
+  return { max, age, female, formula: female ? 'Gulati : 206 − 0,88 × âge' : 'Tanaka : 208 − 0,7 × âge' };
+}
+const pctOf = (bpm, max) => Math.round(bpm / max * 100);
+function zoneOf(bpm, max) {
+  const pc = bpm / max * 100;
+  return pc < 50 ? { n: 0, label: 'Très léger' } : HR_ZONES.find(z => pc < z.to) || HR_ZONES[4];
+}
+const zoneBpm = (z, max) => `${Math.round(max * z.from / 100)} à ${Math.round(max * z.to / 100)}`;
+const validBpm = v => { const n = num(v); return n && n >= 35 && n <= 240 ? Math.round(n) : null; };
+
+/* Analyse des BPM d'une séance par rapport à la recommandation. */
+function hrFeedback(code, avg, mx) {
+  const hp = hrProfile(), t = HR_TARGET[code] || HR_TARGET.A;
+  if (!hp) return `<p class="callout">Ajoute ton âge et ton sexe dans Profil pour comparer tes BPM à ta zone conseillée.</p>`;
+  const lo = Math.round(hp.max * t.avg[0] / 100), hi = Math.round(hp.max * t.avg[1] / 100), capBpm = Math.round(hp.max * t.max / 100);
+  let out = `<p class="hr-target">Conseillé pour cette séance : <strong>${lo} à ${hi} bpm</strong> en moyenne (${t.avg[0]} à ${t.avg[1]} % de ta FC max de ${hp.max}), pointes jusqu'à ${capBpm} bpm. ${t.why}</p>`;
+  const msgs = [];
+  if (avg) {
+    const z = zoneOf(avg, hp.max), pc = pctOf(avg, hp.max);
+    const verdict = pc < t.avg[0] ? ['low', 'un peu bas : raccourcis les repos ou monte un peu les charges.']
+      : pc > t.avg[1] ? ['high', 'élevé : allonge un peu les repos et bois régulièrement.']
+      : ['ok', 'pile dans la cible.'];
+    msgs.push(`<p class="hr-line hr-line--${verdict[0]}"><strong>Moyenne ${avg} bpm</strong>, ${pc} %${z.n ? `, zone ${z.n} (${z.label.toLowerCase()})` : ''} : ${verdict[1]}</p>`);
+  }
+  if (mx) {
+    const pc = pctOf(mx, hp.max);
+    const v = mx > hp.max + 8 ? ['info', `au-dessus de ta FC max théorique : c'est normal, la formule est une estimation (à plus ou moins 10 bpm). Ta vraie FC max est sans doute autour de ${mx}.`]
+      : pc > t.max ? ['high', 'pointe très haute pour ce type de séance : si ce n\'était pas pendant le fractionné, lève un peu le pied.']
+      : ['ok', 'pointe normale.'];
+    msgs.push(`<p class="hr-line hr-line--${v[0]}"><strong>Maximum ${mx} bpm</strong>, ${pc} % : ${v[1]}</p>`);
+  }
+  if (avg && mx && avg > mx) msgs.push('<p class="hr-line hr-line--high">La moyenne ne peut pas dépasser le maximum : vérifie les valeurs.</p>');
+  return out + msgs.join('');
+}
+function hrFieldsHTML(avg, mx) {
+  return `<div class="grid-2">
+      <label class="field"><span>BPM moyen</span><input id="hr-avg" inputmode="numeric" value="${esc(avg || '')}" placeholder="125"></label>
+      <label class="field"><span>BPM max</span><input id="hr-max" inputmode="numeric" value="${esc(mx || '')}" placeholder="165"></label>
+    </div>`;
+}
+
 /* ================= Aujourd'hui ================= */
 const NET = '<div class="court__net" aria-hidden="true"></div>';
 
@@ -810,6 +871,9 @@ function openFinish() {
       <div class="stat"><p class="stat__value">${fmtVolume(st.volume)}</p><p class="stat__label">soulevés</p></div>
     </div>
     ${prs.length ? `<div class="prs"><h3 class="sub">${ICON.trophy} ${prs.length > 1 ? 'Nouveaux records' : 'Nouveau record'}</h3>${prs.map(p => `<p><strong>${esc(EX[p.ex].name)}</strong> : ${p.text}</p>`).join('')}</div>` : ''}
+    <h3 class="sub">Fréquence cardiaque <span class="muted small">(Apple Watch, facultatif)</span></h3>
+    ${hrFieldsHTML(a.hrAvg, a.hrMax)}
+    <div id="hr-fb">${hrFeedback(a.code, a.hrAvg, a.hrMax)}</div>
     <h3 class="sub">Ressenti de l'effort</h3>
     <div class="rpe" role="group" aria-label="Ressenti de 1 à 10">${Array.from({ length: 10 }, (_, i) => `<button type="button" data-rpe="${i + 1}" aria-pressed="${String(a.rpe) === String(i + 1)}">${i + 1}</button>`).join('')}</div>
     <p class="small muted">1 très facile, 10 effort maximal.</p>
@@ -817,6 +881,11 @@ function openFinish() {
     <button class="btn btn--block" id="save-session" type="button" style="background:${s.color}">Enregistrer la séance</button>
     <button class="btn btn--quiet btn--block" type="button" data-close>Continuer la séance</button>
   `, { label: 'Fin de séance' });
+  const hrInput = () => {
+    a.hrAvg = validBpm($('#hr-avg', body).value); a.hrMax = validBpm($('#hr-max', body).value); save();
+    $('#hr-fb', body).innerHTML = hrFeedback(a.code, a.hrAvg, a.hrMax);
+  };
+  $('#hr-avg', body).oninput = hrInput; $('#hr-max', body).oninput = hrInput;
   $$('[data-rpe]', body).forEach(b => b.onclick = () => {
     a.rpe = b.dataset.rpe; save();
     $$('[data-rpe]', body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -827,7 +896,7 @@ function openFinish() {
     state.history.unshift({
       id: Date.now(), code: a.code, name: s.name, date: new Date(a.start).toISOString(),
       minutes: st.minutes, volume: st.volume, setsDone: st.done, setsTotal: st.total,
-      rpe: a.rpe, notes: a.notes, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
+      rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
       items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
     });
     state.active = null;
@@ -1191,17 +1260,28 @@ function renderHistory(el) {
       <div class="cal">${DAYS_SHORT.map(d => `<span class="cal__dow">${d}</span>`).join('')}${cells.join('')}</div>
       <p class="muted small">${plural(monthSessions.length, 'séance')}, ${monthSessions.reduce((t, h) => t + h.minutes, 0)} min, ${fmtVolume(monthSessions.reduce((t, h) => t + (h.volume || 0), 0))} soulevés.</p>
     </section>
+    ${hrHistoryHTML()}
     <section class="panel">
       <h2>Séances</h2>
       ${monthSessions.length ? `<div class="list">${monthSessions.map(h => `
         <button class="row" type="button" data-session="${h.id}">
           <span class="tag" style="--sess:${SESSIONS[h.code]?.color}">${esc(h.code)}</span>
-          <span class="row__main"><strong>${esc(h.name)}</strong><br><span class="muted small">${fmtDateTime(h.date)}, ${h.minutes} min${h.rpe ? `, effort ${esc(h.rpe)}/10` : ''}</span></span>
+          <span class="row__main"><strong>${esc(h.name)}</strong><br><span class="muted small">${fmtDateTime(h.date)}, ${h.minutes} min${h.rpe ? `, effort ${esc(h.rpe)}/10` : ''}${h.hrAvg ? `, ${h.hrAvg} bpm` : ''}</span></span>
           ${h.prs?.length ? `<span class="row__value">${ICON.trophy}${h.prs.length}</span>` : ''}
         </button>`).join('')}</div>` : '<p class="empty">Aucune séance ce mois-ci.</p>'}
     </section>`;
   $$('[data-cal]', el).forEach(b => b.onclick = () => { calOffset = Math.min(0, calOffset + +b.dataset.cal); renderHistory(el); });
   $$('[data-session]', el).forEach(b => b.onclick = () => openSession(b.dataset.session));
+}
+
+function hrHistoryHTML() {
+  const pts = [...state.history].reverse().filter(h => h.hrAvg).map(h => ({ date: h.date, v: h.hrAvg }));
+  if (!pts.length) return '';
+  const hp = hrProfile();
+  return `<section class="panel">
+    <div class="panel__head"><h2>BPM moyen par séance</h2>${hp ? `<span class="muted small">FC max ${hp.max}</span>` : ''}</div>
+    ${lineChart(pts, 'bpm', 'BPM moyen par séance')}
+  </section>`;
 }
 
 function openSession(id) {
@@ -1225,7 +1305,15 @@ function openSession(id) {
     ${h.checkin ? `<p class="muted small">Avant la séance : énergie ${esc(h.checkin.energie).toLowerCase()}, courbatures ${esc(h.checkin.courbatures).toLowerCase()}, douleur ${esc(h.checkin.douleur).toLowerCase()}${h.light ? ', version allégée' : ''}.</p>` : ''}
     ${h.rpe ? `<p>Ressenti : <strong>${esc(h.rpe)}/10</strong></p>` : ''}
     ${h.notes ? `<p class="callout">${esc(h.notes)}</p>` : ''}
-    <button class="btn btn--danger btn--block" type="button" id="del-session">Supprimer cette séance</button>`, { label: h.name });
+    <h3 class="sub">Fréquence cardiaque</h3>
+    ${hrFieldsHTML(h.hrAvg, h.hrMax)}
+    <div id="hr-fb">${h.hrAvg || h.hrMax ? hrFeedback(h.code, h.hrAvg, h.hrMax) : '<p class="muted small">Recopie ici les BPM affichés par ta montre pour cette séance.</p>'}</div>
+    <button class="btn btn--danger btn--block" type="button" id="del-session">Supprimer cette séance</button>`, { label: h.name, onClose: () => { if (view === 'progress') renderProgress(); } });
+  const hrInput = () => {
+    h.hrAvg = validBpm($('#hr-avg', body).value); h.hrMax = validBpm($('#hr-max', body).value); save();
+    $('#hr-fb', body).innerHTML = h.hrAvg || h.hrMax ? hrFeedback(h.code, h.hrAvg, h.hrMax) : '';
+  };
+  $('#hr-avg', body).oninput = hrInput; $('#hr-max', body).oninput = hrInput;
   $('#del-session', body).onclick = () => {
     if (!confirm('Supprimer cette séance de l\'historique ?')) return;
     state.history = state.history.filter(x => x !== h);
@@ -1234,6 +1322,14 @@ function openSession(id) {
 }
 
 /* ================= Profil ================= */
+function hrZonesHTML() {
+  const hp = hrProfile();
+  if (!hp) return '<p class="muted small">Indique ton âge pour calculer ta fréquence cardiaque maximale et tes zones. Ces infos servent aussi pour la nutrition.</p>';
+  return `<p class="hr-max"><strong>${hp.max} bpm</strong> FC max théorique <span class="muted small">(${hp.formula}, ${hp.age} ans)</span></p>
+    <div class="zones">${HR_ZONES.map(z => `<div class="zone zone--${z.n}"><span class="zone__n">Z${z.n}</span><span class="zone__txt"><strong>${z.label}</strong> <span class="muted small">${z.desc}</span></span><span class="zone__bpm">${zoneBpm(z, hp.max)}</span></div>`).join('')}</div>
+    <p class="muted small">Cible pendant tes séances : zones 2 et 3 en moyenne, zone 1 ou 2 pour la récupération. La formule est une estimation à plus ou moins 10 bpm : si ta montre mesure régulièrement plus haut, c'est que ta vraie FC max est plus élevée.</p>`;
+}
+
 function renderProfile() {
   const el = $('#view-profile'), p = state.profile;
   el.innerHTML = `
@@ -1288,6 +1384,15 @@ function renderProfile() {
       </div>
     </section>
 
+    <section class="panel form" id="hr-section">
+      <h2>Âge, sexe et zones cardiaques</h2>
+      <div class="grid-2 grid-2--age">
+        <label class="field"><span>Âge</span><input id="p-age" inputmode="numeric" value="${esc(state.nutrition.age)}" placeholder="30"></label>
+        <div class="field"><span>Sexe</span><div class="seg" role="group" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" data-psex="${k}" aria-pressed="${state.nutrition.sex === k}">${l}</button>`).join('')}</div></div>
+      </div>
+      <div id="hr-zones">${hrZonesHTML()}</div>
+    </section>
+
     <section class="panel form">
       <h2>Apparence</h2>
       <div class="seg" role="group" aria-label="Thème">${[['system', 'Système'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) =>
@@ -1326,6 +1431,12 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
+  $('#p-age').oninput = e => { state.nutrition.age = num(e.target.value) ?? ''; save(); $('#hr-zones').innerHTML = hrZonesHTML(); };
+  $$('[data-psex]', el).forEach(b => b.onclick = () => {
+    state.nutrition.sex = b.dataset.psex; save();
+    $$('[data-psex]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    $('#hr-zones').innerHTML = hrZonesHTML();
+  });
   $$('[data-level]', el).forEach(b => b.onclick = () => {
     p.level = b.dataset.level; save();
     $$('[data-level]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1434,7 +1545,7 @@ function renderNutrition() {
   const setup = `<section class="panel form">
       <h2>Tes infos</h2>
       <p class="muted small">Pour calculer tes besoins, l'app utilise ton dernier poids (Progrès), ta taille (Profil) et ces deux infos.</p>
-      <div class="grid-2">
+      <div class="grid-2 grid-2--age">
         <label class="field"><span>Âge</span><input id="n-age" inputmode="numeric" value="${esc(n.age)}" placeholder="30"></label>
         <div class="field"><span>Sexe</span><div class="seg" role="group" aria-label="Sexe">${[['h', 'Homme'], ['f', 'Femme']].map(([k, l]) => `<button type="button" data-sex="${k}" aria-pressed="${n.sex === k}">${l}</button>`).join('')}</div></div>
       </div>
@@ -1577,7 +1688,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '12';
+const APP_VERSION = '13';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
