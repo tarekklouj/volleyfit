@@ -20,6 +20,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Fréquence cardiaque** : saisie du BPM moyen et max (Apple Watch ou autre) en fin de séance ou après coup, FC max théorique selon l'âge et le sexe (Tanaka pour les hommes, Gulati pour les femmes), 5 zones cardiaques, cible conseillée pour chaque séance et courbe dans l'historique.
 - **Suivi corporel** : poids, IMC, masse grasse, musculaire, osseuse, eau, objectifs de poids et de masse grasse.
 - **Mode focus** pendant la séance : un exercice à la fois, grande animation, charge conseillée, cercles répétitions, repos et séries, réglage de la charge en un tap, historique des séries avec l'heure.
+- **Séance libre** : depuis la fiche de n'importe quel exercice, « Faire cet exercice » lance une séance hors programme, ou « Ajouter à la séance en cours ». Les séries validées comptent dans l'historique, les records et les zones ciblées.
 - **Onglet Muscles** : exercices classés par groupe musculaire (pectoraux, dos, épaules, bras, abdos, cuisses, fessiers, mollets) et analyse des zones ciblées sur la dernière séance, la semaine, le mois ou depuis le début.
 - **Animations au style anatomique** : corps plein, muscles ciblés colorés.
 - **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.

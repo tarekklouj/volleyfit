@@ -227,6 +227,8 @@ function fitSession(code, warmMin = state.profile.warmupMin, light = false) {
   if (cool && cool < 3) cool = 0;
   return { plan: plan.filter(p => p.on), cool, minutes: Math.round(total() / 60) };
 }
+const FREE_SESSION = { name: 'Séance libre', color: '#0F7C78', warmup: 'tapis', goal: 'Exercices choisis par toi.', warmNote: 'Échauffe-toi 5 à 10 minutes avant de commencer.', items: [] };
+const sessionOf = code => SESSIONS[code] || FREE_SESSION;
 const estimateMinutes = s => fitSession(Object.keys(SESSIONS).find(k => SESSIONS[k] === s)).minutes;
 function targetText(it) {
   if (it.kind === 'warmup' || it.kind === 'time' || it.duration) return `${it.minutes ?? it.duration} min`;
@@ -300,7 +302,7 @@ function render() {
   ({ today: renderToday, program: renderProgram, muscles: renderMuscles, nutrition: renderNutrition, progress: renderProgress, profile: renderProfile })[view]();
   const banner = $('#resume');
   banner.hidden = !(state.active && view !== 'today');
-  if (!banner.hidden) banner.querySelector('span').textContent = `Séance en cours : ${SESSIONS[state.active.code].name}`;
+  if (!banner.hidden) banner.querySelector('span').textContent = `Séance en cours : ${sessionOf(state.active.code).name}`;
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => go(t.dataset.view)));
 $('#resume').addEventListener('click', () => go('today'));
@@ -348,6 +350,29 @@ function loadTableHTML(id) {
   </div>`;
 }
 
+/* Faire un exercice choisi librement (onglet Muscles, bibliothèque) */
+function freeItem(id) {
+  const e = EX[id];
+  if (e.type === 'time') return { ex: id, kind: 'time', minutes: 10, sets: [{ done: false }] };
+  const n = 3;
+  if (e.type === 'hold') return { ex: id, kind: 'hold', hold: 30, rest: 45, sets: Array.from({ length: n }, () => ({ kg: '', reps: '', sec: '', done: false })) };
+  const heavy = ['stack', 'smith', 'assist'].includes(LOADS[id]?.[1]) && !['abducteurs', 'adducteurs', 'reverse-fly', 'pec-deck', 'crunch-machine'].includes(id);
+  return { ex: id, kind: 'reps', reps: heavy ? '10' : '12', rest: heavy ? 90 : 60, sets: Array.from({ length: n }, () => ({ kg: '', reps: '', sec: '', done: false })) };
+}
+function doExercise(id) {
+  closeSheet();
+  if (state.active) {
+    state.active.items.push(freeItem(id));
+    save(); toast(`${EX[id].name} ajouté à la séance.`);
+    go('today');
+    setTimeout(() => $('#wx-' + (state.active.items.length - 1))?.scrollIntoView({ block: 'start' }), 80);
+    return;
+  }
+  state.active = { code: 'L', free: true, start: Date.now(), items: [freeItem(id)], rpe: '', notes: '' };
+  save(); go('today');
+  toast('Séance libre démarrée.', { action: 'Annuler', onAction: cancelSession, duration: 8000 });
+}
+
 function openExercise(id) {
   const e = EX[id], best = bestFor(id);
   let anim = { stop() {} };
@@ -378,6 +403,7 @@ function openExercise(id) {
     <p class="callout callout--warn"><strong>Erreur fréquente.</strong> ${esc(e.mistake)}</p>
     <p class="callout"><strong>Pour le volley.</strong> ${esc(e.why)}</p>
     ${best ? `<p class="record">${ICON.trophy}<span>Ton record : <strong>${setText(id, best.s)}</strong>, le ${fmtDate(best.date)}</span></p>` : ''}
+    <button class="btn btn--block" type="button" id="do-ex">${ICON.play} ${state.active ? 'Ajouter à la séance en cours' : 'Faire cet exercice'}</button>
     ${e.alt?.length ? `<h3 class="sub">Si la machine est prise ou absente</h3>
       <div class="list">${e.alt.map(a => `<button class="row" type="button" data-ex="${a}">${exThumb(a, 'thumb--sm')}<span><strong>${esc(EX[a].name)}</strong><br><span class="muted small">${esc(EX[a].equip)}</span></span></button>`).join('')}</div>` : ''}
   `, { label: e.name, onClose: () => {
@@ -393,6 +419,7 @@ function openExercise(id) {
   });
   $('#anim-speed', body).onclick = e2 => e2.currentTarget.setAttribute('aria-pressed', String(anim.speed()));
   $$('[data-ex]', body).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
+  $('#do-ex', body).onclick = () => doExercise(id);
 }
 
 /* Muscles travaillés sur les 7 derniers jours : séries par muscle (principal 1, secondaire 0,5). */
@@ -613,7 +640,7 @@ function renderToday() {
     </section>
     ${weekMusclesHTML()}
     ${last ? `<button class="panel last" type="button" data-session="${last.id}">
-      <span class="tag" style="--sess:${SESSIONS[last.code]?.color}">${esc(last.code)}</span>
+      <span class="tag" style="--sess:${sessionOf(last.code).color}">${esc(last.code)}</span>
       <span><strong>Dernière séance : ${esc(last.name)}</strong><br><span class="muted small">${fmtDate(last.date)}, ${last.minutes} min, ${fmtVolume(last.volume || 0)}${last.prs?.length ? `, ${plural(last.prs.length, 'record')}` : ''}</span></span>
     </button>` : ''}
     <section class="panel">
@@ -702,12 +729,12 @@ function openCheckin(code) {
 }
 
 function renderWorkout(el) {
-  const a = state.active, s = SESSIONS[a.code];
+  const a = state.active, s = sessionOf(a.code);
   if (!s || !a.items) { state.active = null; save(); return renderToday(); }
   el.innerHTML = `
     <header class="wk-head" style="--sess:${s.color}">
       <div class="wk-head__row">
-        <div><p class="muted small">Séance ${a.code}${a.light ? ', version allégée' : ''}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
+        <div><p class="muted small">${a.free ? 'Hors programme' : `Séance ${a.code}`}${a.light ? ', version allégée' : ''}${a.planned ? `, prévue en ${a.planned} min` : ''}</p><h2>${esc(s.name)}</h2></div>
         <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="icon-btn wk-cancel" id="cancel-top" type="button" aria-label="Annuler la séance">${ICON.close}</button><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
@@ -715,6 +742,7 @@ function renderWorkout(el) {
     <button class="focus-cta" type="button" id="focus-open" style="--sess:${s.color}">${ICON.play}<span><strong>Mode focus</strong><br><span class="small">Un exercice à la fois, grande animation, chrono de repos</span></span></button>
     ${isDeload() ? '<p class="callout">Semaine allégée : une série de moins.</p>' : ''}
     <div id="wk-items">${a.items.map((it, i) => itemHTML(it, i)).join('')}</div>
+    <button class="btn btn--ghost btn--block" id="add-ex" type="button">+ Ajouter un exercice</button>
     <button class="btn btn--quiet btn--block" id="abandon" type="button">Annuler la séance</button>`;
   updateProgress();
   tickElapsed();
@@ -728,6 +756,7 @@ function renderWorkout(el) {
   $('#abandon').onclick = cancelSession;
   $('#cancel-top').onclick = cancelSession;
   $('#focus-open').onclick = () => openFocus();
+  $('#add-ex').onclick = () => { musMode = 'groupes'; musGroup = null; go('muscles'); toast('Choisis un exercice, puis « Ajouter à la séance en cours ».'); };
 }
 
 /* Charge de départ selon le poids de corps et le niveau de force. */
@@ -764,9 +793,9 @@ function suggestFor(it) {
 }
 
 function itemHTML(it, i) {
-  const e = EX[it.ex], s = SESSIONS[state.active.code];
+  const e = EX[it.ex], s = sessionOf(state.active.code);
   const complete = it.sets.length && it.sets.every(x => x.done);
-  const canSwap = it.kind !== 'warmup' && e.alt?.length || (it.slot !== undefined && state.swaps[swapKey(state.active.code, it.slot)]);
+  const canSwap = it.slot !== undefined && TEMPLATE[state.active.code] && (it.kind !== 'warmup' && e.alt?.length || state.swaps[swapKey(state.active.code, it.slot)]);
   const head = `<div class="wx__head">
     <button class="wx__fig" type="button" data-info="${it.ex}" aria-label="Voir comment faire : ${esc(e.name)}">${exThumb(it.ex)}</button>
     <div class="wx__title">
@@ -926,7 +955,7 @@ function detectPRs(items) {
 }
 
 function openFinish() {
-  const a = state.active, s = SESSIONS[a.code];
+  const a = state.active, s = sessionOf(a.code);
   const st = sessionStats(a), prs = detectPRs(a.items);
   const body = openSheet(`
     <h2 class="sheet__title">${st.done ? 'Bien joué !' : 'Terminer la séance ?'}</h2>
@@ -959,7 +988,7 @@ function openFinish() {
   $('#save-session').onclick = () => {
     if (st.done === 0 && !confirm('Aucune série validée. Enregistrer quand même ?')) return;
     state.history.unshift({
-      id: Date.now(), code: a.code, name: s.name, date: new Date(a.start).toISOString(),
+      id: Date.now(), code: a.code, name: a.free ? `Séance libre : ${[...new Set(a.items.map(it => EX[it.ex]?.name).filter(Boolean))].slice(0, 2).join(', ')}${a.items.length > 2 ? '…' : ''}` : s.name, date: new Date(a.start).toISOString(),
       minutes: st.minutes, volume: st.volume, setsDone: st.done, setsTotal: st.total,
       rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
       items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
@@ -1081,7 +1110,7 @@ function drawFocus() {
   const a = state.active, ov = $('#focus');
   if (!a || !ov) return closeFocus();
   focusAnim?.stop();
-  const it = a.items[focusIdx], e = EX[it.ex], n = a.items.length, s = SESSIONS[a.code];
+  const it = a.items[focusIdx], e = EX[it.ex], n = a.items.length, s = sessionOf(a.code);
   const grp = it.kind === 'warmup' ? 'Échauffement' : it.cooldown ? 'Retour au calme' : groupOf(e)?.label || e.zone;
   const isTime = it.kind === 'warmup' || it.kind === 'time';
   const firstOpen = it.sets.findIndex(x => !x.done), allDone = firstOpen < 0, cur = allDone ? it.sets.length - 1 : firstOpen;
@@ -1102,7 +1131,7 @@ function drawFocus() {
       <div class="focus__stage">
         <div id="f-anim" class="focus__fig"></div>
         <div class="focus__tools">
-          ${!isTime && (e.alt?.length || TEMPLATE[a.code]?.items[it.slot]?.pool?.length > 1) ? `<button class="tool" type="button" data-fswap aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
+          ${!isTime && it.slot !== undefined && TEMPLATE[a.code] && (e.alt?.length || TEMPLATE[a.code]?.items[it.slot]?.pool?.length > 1) ? `<button class="tool" type="button" data-fswap aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
           <button class="tool" type="button" data-finfo aria-label="Comment faire">i</button>
         </div>
       </div>
@@ -1175,7 +1204,7 @@ function renderMuscles() {
     <div class="seg seg--wide" role="tablist">${[['groupes', 'Par groupe'], ['zones', 'Zones ciblées']].map(([k, l]) =>
       `<button type="button" data-mmode="${k}" aria-pressed="${k === musMode}">${l}</button>`).join('')}</div>`;
   if (musMode === 'zones') renderZones(el, head);
-  else if (musGroup) renderGroup(el, musGroup);
+  else if (musGroup) renderGroup(el, musGroup, head);
   else renderGroups(el, head);
   $$('[data-mmode]', el).forEach(b => b.onclick = () => { musMode = b.dataset.mmode; musGroup = null; renderMuscles(); });
 }
@@ -1191,12 +1220,12 @@ function renderGroups(el, head) {
     </div>`;
   $$('[data-group]', el).forEach(b => b.onclick = () => { musGroup = b.dataset.group; renderMuscles(); window.scrollTo(0, 0); });
 }
-function renderGroup(el, key) {
+function renderGroup(el, key, head) {
   const g = GROUPS.find(x => x.k === key);
   const main = g ? exOfGroup(g, 'p') : Object.keys(EX).filter(id => ['Cardio', 'Étirements'].includes(EX[id].zone));
   const also = g ? exOfGroup(g, 's').filter(id => !main.includes(id)) : [];
   const row = id => `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span class="row__main"><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${esc(EX[id].equip)}</span></span>${ICON.right}</button>`;
-  el.innerHTML = `
+  el.innerHTML = `${head}
     <button class="btn btn--quiet" type="button" id="grp-back">${ICON.left} Tous les groupes</button>
     <section class="group-hero">
       <div><h1 class="page-title">${g ? g.label : 'Cardio et récupération'}</h1>${g ? `<p>${g.m.map(m => MUSCLES[m]).join(', ')}</p>` : ''}</div>
@@ -1550,7 +1579,7 @@ function renderHistory(el) {
       <h2>Séances</h2>
       ${monthSessions.length ? `<div class="list">${monthSessions.map(h => `
         <button class="row" type="button" data-session="${h.id}">
-          <span class="tag" style="--sess:${SESSIONS[h.code]?.color}">${esc(h.code)}</span>
+          <span class="tag" style="--sess:${sessionOf(h.code).color}">${esc(h.code)}</span>
           <span class="row__main"><strong>${esc(h.name)}</strong><br><span class="muted small">${fmtDateTime(h.date)}, ${h.minutes} min${h.rpe ? `, effort ${esc(h.rpe)}/10` : ''}${h.hrAvg ? `, ${h.hrAvg} bpm` : ''}</span></span>
           ${h.prs?.length ? `<span class="row__value">${ICON.trophy}${h.prs.length}</span>` : ''}
         </button>`).join('')}</div>` : '<p class="empty">Aucune séance ce mois-ci.</p>'}
@@ -1970,7 +1999,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '15';
+const APP_VERSION = '16';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
