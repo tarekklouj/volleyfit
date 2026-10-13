@@ -1801,6 +1801,115 @@ function renderProfile() {
 }
 
 
+
+/* ================= Analyse automatique d'un repas écrit en français =================
+   « pâtes sauce blanche avec mozzarella et 200 g de filet de poulet » :
+   reconnaît les aliments (même avec une faute de frappe), lit les quantités
+   (200 g, 2 œufs, un bol, une tranche, un pot…) ou prend une portion normale. */
+const norm = str => String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/œ/g, 'oe').replace(/(\d),(\d)/g, '$1.$2').replace(/(\d)([a-z])/g, '$1 $2').replace(/([a-z])(\d)/g, '$1 $2')
+  .replace(/[’'`]/g, ' ').replace(/[,;+\n/]|\bpuis\b|\bavec\b|\bet\b|\bplus\b/g, ' | ').replace(/[^a-z0-9.| ]/g, ' ').replace(/\s+/g, ' ').trim();
+const sing = w => w.length > 3 ? w.replace(/(s|x)$/, '') : w;
+const NUMW = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, demi: .5, demie: .5, moitie: .5, quart: .25 };
+const SIZEW = { petit: .7, petite: .7, grand: 1.4, grande: 1.4, gros: 1.4, grosse: 1.4, double: 2 };
+const STOP = new Set(['de', 'du', 'des', 'd', 'la', 'le', 'les', 'l', 'au', 'aux', 'a', 'en', 'sur', 'dans', 'mon', 'ma', 'mes', 'un', 'une', 'peu', 'normal', 'normale', 'nature', 'maison', 'sauce', 'avec', 'sans', 'bien', 'cuit', 'cuite', 'cuits', 'cuites', 'frais', 'fraiche', 'j', 'ai', 'mange', 'bu', 'pris', 'il', 'y', 'c', 'est', 'midi', 'soir', 'matin', 'repas', 'dejeuner', 'diner', 'souper', 'gouter', 'collation', 'encas', 'petit', 'hier', 'aujourd', 'hui', 'apres', 'avant', 'match', 'seance', 'entrainement', 'assiette', 'bol', 'verre', 'pot', 'tranche', 'tranches', 'portion', 'part', 'g', 'gr', 'kg', 'ml', 'cl', 'l']);
+function unitGrams(u, f) {
+  u = sing(u);
+  if (['g', 'gr', 'gramme'].includes(u)) return 1;
+  if (u === 'kg' || u === 'kilo') return 1000;
+  if (u === 'ml') return 1; if (u === 'cl') return 10; if (u === 'l' || u === 'litre') return 1000;
+  if (u === 'tranche') return f.slice || 30;
+  if (u === 'pot') return f.pot || f.portion;
+  if (u === 'boite' || u === 'canette' || u === 'cannette') return f.can || f.portion;
+  if (u === 'bouteille') return f.can || 330;
+  if (u === 'boule') return f.ball || f.portion;
+  if (u === 'bol') return f.id === 'soupe' ? 300 : f.id === 'cereales' || f.id === 'avoine' ? 60 : 250;
+  if (u === 'assiette') return 300;
+  if (u === 'verre' || u === 'tasse') return 200;
+  if (u === 'cuillere' || u === 'cas') return 15;
+  if (u === 'cac') return 5;
+  if (u === 'poignee') return 30;
+  if (u === 'carre') return 5;
+  if (u === 'dose' || u === 'scoop' || u === 'mesure') return 30;
+  if (u === 'piece' || u === 'morceau' || u === 'unite') return f.piece || f.portion;
+  if (u === 'part' || u === 'portion') return f.portion;
+  return null;
+}
+let FOOD_INDEX = null;
+function foodIndex() {
+  if (FOOD_INDEX) return FOOD_INDEX;
+  const list = [];
+  for (const f of FOODS) for (const a of f.a) list.push({ f, toks: norm(a).split(' ').map(sing) });
+  list.sort((x, y) => y.toks.length - x.toks.length);
+  return (FOOD_INDEX = list);
+}
+function lev(a, b) {
+  const m = a.length, n = b.length, d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[m][n];
+}
+const isNum = t => /^\d+(\.\d+)?$/.test(t) || t in NUMW;
+const numVal = t => t in NUMW ? NUMW[t] : parseFloat(t);
+function parseMeal(text) {
+  const toks = norm(text).split(' ').filter(Boolean), st = toks.map(sing), used = new Array(toks.length).fill(false), found = [];
+  const idx = foodIndex();
+  // 1) correspondances exactes (expressions les plus longues d'abord)
+  for (let i = 0; i < toks.length; i++) {
+    if (used[i] || toks[i] === '|') continue;
+    for (const { f, toks: at } of idx) {
+      if (i + at.length > toks.length) continue;
+      let ok = true;
+      for (let k = 0; k < at.length; k++) if (used[i + k] || st[i + k] !== at[k]) { ok = false; break; }
+      if (ok) { for (let k = 0; k < at.length; k++) used[i + k] = true; found.push({ f, i, j: i + at.length - 1, exact: true }); break; }
+    }
+  }
+  // 2) fautes de frappe : mots seuls proches d'un alias (« yagouret » → yaourt)
+  const unknown = [];
+  for (let i = 0; i < toks.length; i++) {
+    const t = st[i];
+    if (used[i] || t === '|' || t.length < 4 || STOP.has(toks[i]) || isNum(toks[i]) || unitGrams(toks[i], { portion: 1 }) !== null || toks[i] in SIZEW) continue;
+    let best = null, bd = 9;
+    for (const { f, toks: at } of idx) {
+      if (at.length !== 1 || Math.abs(at[0].length - t.length) > 2) continue;
+      const d = lev(t, at[0]);
+      if (d < bd) { bd = d; best = f; }
+    }
+    if (best && bd <= (t.length >= 7 ? 2 : 1)) { used[i] = true; found.push({ f: best, i, j: i, exact: false, typed: toks[i] }); }
+    else unknown.push(toks[i]);
+  }
+  // 3) quantités : avant l'aliment (200 g de…, 2 œufs, un bol de…) ou juste après (poulet 200 g)
+  found.sort((a, b) => a.i - b.i);
+  const items = found.map(m => {
+    let grams = null, mult = 1, k = m.i - 1, unit = null, count = null;
+    while (k >= 0 && k >= m.i - 5 && toks[k] !== '|' && !found.some(o => o !== m && k >= o.i && k <= o.j)) {
+      const t = toks[k];
+      if (t in SIZEW) mult *= SIZEW[t];
+      else if (unit === null && unitGrams(t, m.f) !== null) unit = t;
+      else if (isNum(t)) { count = numVal(t); break; }
+      else if (!STOP.has(t)) break;
+      k--;
+    }
+    if (count === null) {
+      const a1 = toks[m.j + 1], a2 = toks[m.j + 2];
+      if (a1 && /^\d/.test(a1) && a2 && unitGrams(a2, m.f) !== null) { count = parseFloat(a1); unit = a2; }
+    }
+    if (count !== null && unit) grams = count * unitGrams(unit, m.f);
+    else if (unit) grams = unitGrams(unit, m.f);
+    else if (count !== null) grams = count * (m.f.piece || m.f.portion);
+    else grams = m.f.portion;
+    grams = Math.max(1, Math.round(grams * mult));
+    return { id: m.f.id, n: m.f.n, g: grams, typed: m.exact ? null : m.typed };
+  });
+  // regrouper les doublons (ex. « poulet … poulet »)
+  const merged = [];
+  for (const it of items) { const o = merged.find(x => x.id === it.id); if (o) o.g += it.g; else merged.push(it); }
+  return { items: merged, unknown: [...new Set(unknown)] };
+}
+const foodById = id => FOODS.find(f => f.id === id);
+const itemMacros = it => { const f = foodById(it.id); return { kcal: Math.round(f.kcal * it.g / 100), p: Math.round(f.p * it.g / 10) / 10 }; };
+const mealTotals = items => items.reduce((t, it) => { const m = itemMacros(it); return { kcal: t.kcal + m.kcal, p: Math.round((t.p + m.p) * 10) / 10 }; }, { kcal: 0, p: 0 });
+
 /* ================= Nutrition ================= */
 const OBJECTIVES = {
   muscle: { label: 'Prise de muscle', kcal: 250, prot: 1.8, desc: 'Léger surplus calorique pour construire du muscle sans trop de gras.' },
@@ -1808,7 +1917,7 @@ const OBJECTIVES = {
   maintien: { label: 'Maintien', kcal: 0, prot: 1.6, desc: 'Garder ton poids et performer sur le terrain.' },
   perte: { label: 'Perte de gras', kcal: -450, prot: 2.0, desc: 'Déficit modéré qui préserve tes muscles et ton énergie.' }
 };
-let mealMoment = 'tous';
+let mealMoment = 'tous', smartDraft = '', smartItems = [], smartUnknown = [], smartSource = '';
 const todayKey = () => isoDate(new Date());
 function dayLog(key = todayKey()) {
   if (!state.food[key]) state.food[key] = { entries: [], water: 0 };
@@ -1897,11 +2006,16 @@ function renderNutrition() {
         <div class="water">${Array.from({ length: Math.max(8, Math.ceil((need?.water || 3) / 0.25)) }, (_, i) => `<span class="${i < log.water / 250 ? 'on' : ''}"></span>`).join('')}</div>
         <div class="btn-row"><button class="btn btn--sm" type="button" id="water-add">+ 1 verre (25 cl)</button><button class="btn btn--quiet btn--sm" type="button" id="water-rm" ${log.water ? '' : 'disabled'}>Retirer un verre</button></div>
       </div>
+      <h3 class="sub">Écris ce que tu as mangé</h3>
+      <div class="smart">
+        <textarea id="smart-in" rows="2" placeholder="Ex. : pâtes sauce blanche avec mozzarella et 200 g de filet de poulet, un yaourt">${esc(smartDraft)}</textarea>
+        <div id="smart-out" aria-live="polite"></div>
+      </div>
       <h3 class="sub">Ajout rapide</h3>
-      <div class="quick">${QUICK_FOODS.map((f, i) => `<button class="chip chip--food" type="button" data-qf="${i}"><strong>${esc(f.name)}</strong> ${f.p} g</button>`).join('')}</div>
+      <div class="quick">${QUICK_FOODS.map((f, i) => `<button class="chip chip--food" type="button" data-qf="${i}"><span class="qf__i" aria-hidden="true">${f.icon || ''}</span><strong>${esc(f.name)}</strong><span class="qf__p">${f.p} g</span></button>`).join('')}</div>
       <button class="btn btn--ghost btn--sm" type="button" id="food-custom">+ Autre aliment</button>
       ${log.entries.length ? `<div class="list list--plain food-log">${log.entries.map(e => `
-        <div class="food-row"><span><strong>${esc(e.name)}</strong><br><span class="muted small">${e.p} g de protéines, ${e.kcal} kcal</span></span>
+        <div class="food-row"><span><strong>${esc(e.name)}</strong><br><span class="muted small">${fmtNum(e.p)} g de protéines, ${e.kcal} kcal${e.items ? `<br>${e.items.map(x => `${esc(x.n)} ${x.g} g`).join(', ')}` : ''}</span></span>
         <button class="icon-btn" type="button" data-fdel="${e.id}" aria-label="Retirer ${esc(e.name)}">${ICON.trash}</button></div>`).join('')}</div>` : '<p class="empty">Rien de noté aujourd\'hui. Ajoute un aliment ou un repas des idées plus bas.</p>'}
     </section>
 
@@ -1948,6 +2062,37 @@ function renderNutrition() {
   };
   $$('[data-complete-id]', el).forEach(b => b.onclick = openIdentitySheet);
   $$('[data-goto-profile]', el).forEach(b => b.onclick = () => go('profile'));
+  // analyse automatique
+  const out = $('#smart-out', el);
+  const drawSmart = () => {
+    if (!smartDraft.trim()) { out.innerHTML = ''; smartItems = []; return; }
+    if (!smartItems.length || smartSource !== smartDraft) { const r = parseMeal(smartDraft); smartItems = r.items; smartUnknown = r.unknown; smartSource = smartDraft; }
+    const tot = mealTotals(smartItems);
+    out.innerHTML = smartItems.length ? `
+      <div class="smart__list">${smartItems.map((it, i) => { const m = itemMacros(it); return `
+        <div class="smart__row">
+          <span class="smart__name"><strong>${esc(it.n)}</strong>${it.typed ? `<span class="muted small"> (« ${esc(it.typed)} »)</span>` : ''}<br><span class="muted small">${fmtNum(m.p)} g de protéines, ${m.kcal} kcal</span></span>
+          <span class="smart__g"><button type="button" data-sg="${i}" data-d="-1" aria-label="Moins">−</button><input inputmode="numeric" data-sgi="${i}" value="${it.g}" aria-label="Grammes de ${esc(it.n)}"><span>g</span><button type="button" data-sg="${i}" data-d="1" aria-label="Plus">+</button></span>
+          <button class="icon-btn" type="button" data-sdel="${i}" aria-label="Retirer ${esc(it.n)}">${ICON.close}</button>
+        </div>`; }).join('')}</div>
+      ${smartUnknown.length ? `<p class="muted small">Pas reconnu : ${smartUnknown.map(esc).join(', ')}. Ajoute-le avec « Autre aliment » si besoin.</p>` : ''}
+      <div class="smart__tot"><span><strong>${fmtNum(tot.p)} g</strong> de protéines</span><span><strong>${tot.kcal}</strong> kcal</span></div>
+      <button class="btn btn--block" type="button" id="smart-add">Ajouter à aujourd'hui</button>`
+      : `<p class="muted small">Aucun aliment reconnu pour l'instant. Essaie par exemple « riz poulet brocolis » ou « 2 œufs et une banane ».</p>`;
+    $$('[data-sg]', out).forEach(b => b.onclick = () => { const it = smartItems[+b.dataset.sg]; const step = it.g < 50 ? 5 : it.g < 150 ? 10 : 25; it.g = Math.max(5, it.g + step * +b.dataset.d); drawSmart(); });
+    $$('[data-sgi]', out).forEach(inp => inp.onchange = () => { smartItems[+inp.dataset.sgi].g = Math.max(1, Math.round(num(inp.value) || 0)); drawSmart(); });
+    $$('[data-sdel]', out).forEach(b => b.onclick = () => { smartItems.splice(+b.dataset.sdel, 1); drawSmart(); });
+    const add = $('#smart-add', out);
+    if (add) add.onclick = () => {
+      const t = mealTotals(smartItems), label = smartDraft.trim().replace(/\s+/g, ' ');
+      dayLog().entries.push({ id: Date.now(), name: label.length > 60 ? label.slice(0, 57) + '…' : label, p: t.p, kcal: t.kcal, items: smartItems.map(x => ({ n: x.n, g: x.g })) });
+      smartDraft = ''; smartItems = []; smartSource = ''; save();
+      toast(`Ajouté : ${fmtNum(t.p)} g de protéines, ${t.kcal} kcal.`); renderNutrition();
+    };
+  };
+  let smartTimer;
+  $('#smart-in', el).oninput = e => { smartDraft = e.target.value; clearTimeout(smartTimer); smartTimer = setTimeout(() => { smartItems = []; drawSmart(); }, 350); };
+  drawSmart();
   $$('[data-obj]', el).forEach(b => b.onclick = () => { n.objective = b.dataset.obj; save(); renderNutrition(); });
   $$('[data-moment]', el).forEach(b => b.onclick = () => {
     mealMoment = b.dataset.moment;
@@ -1999,7 +2144,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '17';
+const APP_VERSION = '18';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
