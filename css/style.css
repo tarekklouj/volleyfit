@@ -753,3 +753,7 @@ body.has-focus .timer { display: none; }
 .court--dark .court__facts span { background: rgba(255, 255, 255, .1); display: inline-flex; align-items: center; gap: 6px; }
 .court--dark .court__facts svg { width: 14px; height: 14px; fill: #FF5A2C; }
 .court--dark .court__meta { color: #D6D6D3; opacity: 1; }
+
+/* v25 : à la maison */
+.home-panel { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #9333EA 50%, transparent); }
+.home-panel .pill { background: color-mix(in srgb, #9333EA 18%, transparent); }

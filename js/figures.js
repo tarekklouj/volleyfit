@@ -693,9 +693,78 @@ const FIG = (() => {
   DEFS['pec-deck'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, false, tr) };
   DEFS['cable-fly'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, true, tr) };
 
+
+  /* ---------- exercices à la maison ---------- */
+  DEFS.pompe = D(
+    { hip: [96, 102], t: 100, hands: [[141, 138], [139, 138]], feet: [[36, 132], [40, 132]], f: [5, 5] },
+    { hip: [96, 120], t: 97 },
+    { dur: 2600 });
+  DEFS['squat-pdc'] = D(
+    { hip: [104, 73], t: 180, a: [80, 90, 78, 88], feet: STAND_FEET },
+    { hip: [86, 102], t: 150, a: [95, 95, 93, 93] });
+  DEFS.fentes = D(
+    { hip: [96, 76], t: 180, a: [12, 150, 10, 150], feet: [[124, 137], [66, 135]], f: [90, 55] },
+    { hip: [94, 100] });
+  DEFS.chaise = D(
+    { hip: [74, 98], t: 180, a: [30, 20, 28, 18], feet: [[108, 137], [104, 137]] },
+    { hip: [74, 97] },
+    { bg: [['r', 52, 10, 8, 130, 2]], hold: true, dur: 3600 });
+  DEFS['pont-fessier'] = D(
+    { hip: [92, 130], t: -88, hands: [[60, 137], [58, 137]], feet: [[126, 137], [122, 137]] },
+    { hip: [96, 112], t: -70 },
+    { dur: 2600 });
+  DEFS['mollets-pdc'] = { ...DEFS['mollets-smith'], bg: [['r', 104, 133, 30, 7, 2], ['l', 150, 60, 150, 140, 4]], bar: false, p0: { ...DEFS['mollets-smith'].p0, a: [40, 40, -10, -6] }, p1: { ...DEFS['mollets-smith'].p1, a: [40, 40, -10, -6] } };
+  DEFS.superman = D(
+    { hip: [84, 130], t: 92, a: [100, 100, 98, 98], l: [-90, -90, -92, -92], f: [0, 0] },
+    { t: 104, a: [112, 112, 110, 110], l: [-80, -80, -82, -82] },
+    { dur: 2600 });
+  DEFS['crunch-sol'] = D(
+    { hip: [100, 130], t: -90, hands: [[50, 124], [48, 125]], feet: [[132, 137], [128, 137]] },
+    { t: -122, hands: [[64, 104], [62, 105]] },
+    { dur: 2400 });
+  DEFS['mountain-climbers'] = D(
+    { hip: [92, 104], t: 100, hands: [[138, 138], [136, 138]], feet: [[40, 134], [86, 126]], f: [5, 10] },
+    { feet: [[86, 126], [40, 134]], f: [10, 5] },
+    { loop: true, dur: 900 });
+  DEFS['jumping-jacks'] = D(
+    { hip: [100, 73], t: 180, a: [12, 8, -12, -8], l: [4, 0, -4, 0], f: [90, -90] },
+    { hip: [100, 70], a: [160, 170, -160, -170], l: [22, 18, -22, -18] },
+    { view: 'front', loop: true, dur: 1100 });
+  DEFS['band-row'] = D(
+    { hip: [70, 128], t: 178, a: [92, 92, 90, 90], feet: [[128, 134], [126, 134]], f: [170, 170] },
+    { t: 186, a: [-40, 85, -42, 85] },
+    { cable: [142, 134], hand: 'grip' });
+  DEFS['band-pulldown'] = { ...DEFS['tirage-vertical'], bg: [['r', 140, 4, 6, 136, 1]], cable: [138, 8],
+    p0: { ...DEFS['tirage-vertical'].p0, hip: [92, 104], l: [0, -90, 2, -88] }, p1: { ...DEFS['tirage-vertical'].p1, hip: [92, 104], l: [0, -90, 2, -88] } };
+  DEFS['band-curl'] = { ...DEFS['biceps-curl'], bg: [], cable: [100, 138] };
+  DEFS['band-triceps'] = { ...DEFS['triceps-overhead'], bg: [], cable: [84, 138] };
+  DEFS['band-press'] = D(
+    { hip: [100, 73], t: 180, a: [-22, 170, -24, 168], feet: [[106, 137], [94, 137]] },
+    { a: [176, 178, 174, 176] },
+    { cable: [100, 138], hand: 'grip' });
+  DEFS['band-lateral'] = { ...DEFS['lateral-raise'], bg: [], cable: [100, 138] };
+  DEFS['rdl-elastique'] = { ...DEFS.rdl, bg: [], cable: [102, 138], hand: 'grip' };
+  for (const k of ['jumping-jacks']) DEFS[k].view = 'front';
   for (const f of Object.values(DEFS)) if (f.view === 'front' && f.p0) { for (const p of [f.p0, f.p1]) { if (p) { p.shw = 12; p.hw = 5.5; } } f._act = undefined; f._trail = undefined; }
   const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
   const HINTS = {
+    pompe: "Vue de côté. Le corps reste droit comme une planche, la poitrine descend vers le sol.",
+    'squat-pdc': "Vue de côté. Les hanches reculent comme pour s'asseoir, les bras devant pour l'équilibre.",
+    fentes: "Vue de côté. Un grand pas en avant, le genou arrière descend vers le sol.",
+    chaise: "Vue de côté. Dos contre le mur, cuisses parallèles au sol : on tient la position.",
+    'pont-fessier': "Vue de côté, allongé sur le dos. Les hanches montent jusqu'à l'alignement épaules-genoux.",
+    superman: "Vue de côté, allongé sur le ventre. Bras, poitrine et jambes décollent ensemble.",
+    'crunch-sol': "Vue de côté, allongé sur le dos. Le haut du dos s'enroule vers les genoux.",
+    'mountain-climbers': "Vue de côté, en position de pompe. Les genoux montent vers la poitrine en alternance.",
+    'jumping-jacks': "Vue de face. Bras et jambes s'écartent en sautant, puis se referment.",
+    'band-row': "Vue de côté, assis au sol. L'élastique passe autour des pieds, les coudes reculent.",
+    'band-pulldown': "Vue de côté, à genoux. L'élastique fixé en haut de la porte descend vers la poitrine.",
+    'band-curl': "Vue de côté. Debout sur l'élastique, les avant-bras montent, coudes fixes.",
+    'band-triceps': "Vue de côté. Élastique sous le pied arrière, les bras se tendent au-dessus de la tête.",
+    'band-press': "Vue de côté. Debout sur l'élastique, les mains poussent au-dessus de la tête.",
+    'band-lateral': "Vue de face. Debout sur l'élastique, les bras montent sur les côtés.",
+    'rdl-elastique': "Vue de côté. Debout sur l'élastique, les hanches reculent, le dos reste plat.",
+    'mollets-pdc': "Vue de côté. L'avant des pieds sur la marche, tu montes sur la pointe.",
     'smith-bench': "Vue de côté, allongé sur le banc. La barre guidée descend vers le bas des pectoraux puis remonte bras presque tendus.",
     'smith-incline': "Vue de côté, banc incliné. La barre descend vers le haut de la poitrine.",
     'pec-deck': "Vue de dessus, dos contre le dossier. Les bras se referment devant la poitrine comme pour un gros câlin.",

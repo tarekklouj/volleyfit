@@ -22,7 +22,7 @@ const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const DAYS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-const ZONES = ['Machines', 'Smith machine', 'Poulie', 'Cardio', 'Étirements'];
+const ZONES = ['Machines', 'Smith machine', 'Poulie', 'Maison', 'Cardio', 'Étirements'];
 const METRICS = {
   weight: { label: 'Poids', unit: 'kg' },
   fat: { label: 'Masse grasse', unit: '%' },
@@ -198,7 +198,9 @@ function cycleWeek() {
 }
 const isDeload = () => cycleWeek() === 4;
 const setsFor = it => isDeload() ? Math.max(1, it.sets - 1) : it.sets;
-const warmupFor = code => state.profile.warmupMachine !== 'auto' ? state.profile.warmupMachine : SESSIONS[code].warmup;
+const isHome = code => !!TEMPLATE[code]?.home;
+const warmMinFor = code => TEMPLATE[code]?.warmupMin || state.profile.warmupMin;
+const warmupFor = code => isHome(code) ? SESSIONS[code].warmup : state.profile.warmupMachine !== 'auto' ? state.profile.warmupMachine : SESSIONS[code].warmup;
 
 /* Durée : chaque séance est ajustée pour durer entre 50 et 70 minutes, échauffement compris. */
 const SESSION_MIN = 50, SESSION_MAX = 70, SESSION_TARGET = 60, TRANSITION = 60;
@@ -208,7 +210,7 @@ function itemSeconds(it, n) {
   const work = it.hold ? it.hold * (it.perSide ? 2 : 1) + 10 : (side ? 70 : 40);
   return n * (work + it.rest) + TRANSITION;
 }
-function fitSession(code, warmMin = state.profile.warmupMin, light = false) {
+function fitSession(code, warmMin = warmMinFor(code), light = false) {
   const s = SESSIONS[code];
   const plan = s.items.map((it, slot) => ({ ...it, slot, n: it.duration ? 0 : Math.max(1, setsFor(it) - (light ? 1 : 0)), on: true }));
   let cool = 0;
@@ -614,7 +616,7 @@ function renderToday() {
       <p class="court__kicker">${hello}${DAYS[wd]}, semaine ${cycleWeek()} sur 4</p>
       <h1 class="court__title">${esc(s.name)}</h1>
       <p class="court__meta">${esc(s.goal)}</p>
-      <p class="court__facts"><span>${p.warmupMin} min d'échauffement</span><span>${fitSession(code).plan.length} exercices</span><span>${estimateMinutes(s)} min au total</span></p>
+      <p class="court__facts"><span>${warmMinFor(code)} min d'échauffement</span><span>${fitSession(code).plan.length} exercices</span><span>${estimateMinutes(s)} min au total</span></p>
       <div class="btn-row"><button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>${TEMPLATE[code].fixed ? '' : `<button class="btn btn--court-ghost" data-reroll="${code}" type="button">${ICON.swap} Autres exercices</button>`}</div>
     </section>`;
   } else {
@@ -666,7 +668,7 @@ function renderToday() {
 /* ================= Séance en cours ================= */
 function buildItems(code, light = false) {
   const s = SESSIONS[code], p = state.profile, fit = fitSession(code, undefined, light);
-  const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: p.warmupMin, sets: [{ done: false }] }];
+  const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: warmMinFor(code), home: isHome(code), sets: [{ done: false }] }];
   fit.plan.forEach(it => {
     const slot = it.slot;
     const exId = EX[state.swaps[swapKey(code, slot)]] ? state.swaps[swapKey(code, slot)] : it.ex;
@@ -818,7 +820,7 @@ function itemHTML(it, i) {
   let body;
   if (it.kind === 'warmup' || it.kind === 'time') {
     const isW = it.kind === 'warmup';
-    body = `${isW ? `<div class="seg" role="group" aria-label="Machine">${WARMUP_MACHINES.map(m => `<button type="button" data-machine="${i}" data-m="${m}" aria-pressed="${it.ex === m}">${EX[m].short}</button>`).join('')}</div>` : ''}
+    body = `${isW && !it.home ? `<div class="seg" role="group" aria-label="Machine">${WARMUP_MACHINES.map(m => `<button type="button" data-machine="${i}" data-m="${m}" aria-pressed="${it.ex === m}">${EX[m].short}</button>`).join('')}</div>` : ''}
       <div class="time-row">
         <div class="stepper">
           <button type="button" data-min="${i}" data-d="-${isW ? 5 : 1}" aria-label="Moins de minutes">−</button>
@@ -871,7 +873,7 @@ function onWorkoutClick(e) {
   if (d.machine !== undefined) { a.items[+d.machine].ex = d.m; save(); return rerenderItem(+d.machine); }
   if (d.min !== undefined) {
     const it = a.items[+d.min], step = +d.d;
-    it.minutes = it.kind === 'warmup' ? Math.min(25, Math.max(15, it.minutes + step)) : Math.min(60, Math.max(1, it.minutes + step));
+    it.minutes = it.kind === 'warmup' ? (it.home ? Math.min(15, Math.max(5, it.minutes + step)) : Math.min(25, Math.max(15, it.minutes + step))) : Math.min(60, Math.max(1, it.minutes + step));
     save(); return rerenderItem(+d.min);
   }
   if (d.run !== undefined) {
@@ -1231,8 +1233,13 @@ function renderGroups(el, head) {
 }
 function renderGroup(el, key, head) {
   const g = GROUPS.find(x => x.k === key);
-  const main = g ? exOfGroup(g, 'p') : Object.keys(EX).filter(id => ['Cardio', 'Étirements'].includes(EX[id].zone));
-  const also = g ? exOfGroup(g, 's').filter(id => !main.includes(id)) : [];
+  const atHome = id => EX[id].zone === 'Maison';
+  const main = (g ? exOfGroup(g, 'p') : Object.keys(EX).filter(id => ['Cardio', 'Étirements'].includes(EX[id].zone))).filter(id => !atHome(id));
+  const also = g ? exOfGroup(g, 's').filter(id => !main.includes(id) && !atHome(id)) : [];
+  const home = g ? [...exOfGroup(g, 'p'), ...exOfGroup(g, 's')].filter((id, i, arr) => atHome(id) && arr.indexOf(id) === i && !/^echauffement|^etirements/.test(id))
+    : Object.keys(EX).filter(id => /^echauffement-maison|^etirements-maison/.test(id));
+  const homeMain = g ? home.filter(id => (EX[id].target.p || []).some(m => g.m.includes(m))) : home;
+  const homeAlso = home.filter(id => !homeMain.includes(id));
   const row = id => `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span class="row__main"><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${esc(EX[id].equip)}</span></span>${ICON.right}</button>`;
   el.innerHTML = `${head}
     <button class="btn btn--quiet" type="button" id="grp-back">${ICON.left} Tous les groupes</button>
@@ -1241,7 +1248,10 @@ function renderGroup(el, key, head) {
       ${g ? `<div class="group-hero__fig">${FIG.muscleFigure(g.side, { p: g.m }, 'full', null, g.label)}</div>` : ''}
     </section>
     <section class="panel"><h2>Exercices principaux</h2><div class="list">${main.map(row).join('')}</div></section>
-    ${also.length ? `<section class="panel"><h2>Travaillent aussi ${g.label.toLowerCase()}</h2><div class="list">${also.map(row).join('')}</div></section>` : ''}`;
+    ${also.length ? `<section class="panel"><h2>Travaillent aussi ${g ? g.label.toLowerCase() : ''}</h2><div class="list">${also.map(row).join('')}</div></section>` : ''}
+    ${home.length ? `<section class="panel home-panel"><div class="panel__head"><h2>À la maison, sans machine</h2><span class="pill">poids du corps ou élastique</span></div>
+      <div class="list">${homeMain.map(row).join('')}</div>
+      ${homeAlso.length ? `<h3 class="sub">Travaillent aussi ${g.label.toLowerCase()}</h3><div class="list">${homeAlso.map(row).join('')}</div>` : ''}</section>` : ''}`;
   $('#grp-back', el).onclick = () => { musGroup = null; renderMuscles(); };
   $$('[data-ex]', el).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
 }
@@ -1307,7 +1317,7 @@ function renderPlan(el, head) {
         <div class="panel__head"><h2>Séance ${k}</h2><span class="muted small">${estimateMinutes(s)} min</span></div>
         <p><strong>${esc(s.name)}.</strong> ${esc(s.goal)}</p>
         <div class="list">
-          <button class="row" type="button" data-ex="${warmupFor(k)}">${exThumb(warmupFor(k), 'thumb--sm')}<span><span class="fam">Échauffement</span><br><strong>${esc(EX[warmupFor(k)].name)}</strong><br><span class="muted small">${p.warmupMin} min</span></span></button>
+          <button class="row" type="button" data-ex="${warmupFor(k)}">${exThumb(warmupFor(k), 'thumb--sm')}<span><span class="fam">Échauffement</span><br><strong>${esc(EX[warmupFor(k)].name)}</strong><br><span class="muted small">${warmMinFor(k)} min</span></span></button>
           ${fitSession(k).plan.map(it => { const id = EX[state.swaps[swapKey(k, it.slot)]] ? state.swaps[swapKey(k, it.slot)] : it.ex; const varies = (TEMPLATE[k].items[it.slot].pool || []).length > 1;
             return `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span><span class="fam">${esc(TEMPLATE[k].items[it.slot].slot)}${varies ? ' <span class="fam__var">variable</span>' : ''}</span><br><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${targetText(it)}</span></span></button>`; }).join('')}
           ${fitSession(k).cool ? `<button class="row" type="button" data-ex="${s.cooldown.ex}">${exThumb(s.cooldown.ex, 'thumb--sm')}<span><span class="fam">Retour au calme</span><br><strong>${esc(EX[s.cooldown.ex].name)}</strong><br><span class="muted small">${fitSession(k).cool} min</span></span></button>` : ''}
@@ -2212,7 +2222,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '24';
+const APP_VERSION = '25';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
