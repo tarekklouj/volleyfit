@@ -50,7 +50,7 @@ La structure et les familles se modifient dans `TEMPLATE`, dans `js/data.js`.
 
 - Besoins du jour (calories, protéines, glucides, lipides, eau) calculés avec la formule de Mifflin-St Jeor, ajustés aux jours de séance et à l'objectif (prise de muscle, recomposition, maintien, perte de gras).
 - **Analyse automatique des repas** : écris ton repas en français (« pâtes sauce blanche avec mozzarella et 200 g de poulet », « yaourt normal »), l'app reconnaît près de 90 aliments courants (même avec une faute de frappe), lit les quantités (200 g, 2 œufs, un bol, une tranche, un pot…) ou prend une portion normale, puis calcule protéines et calories. Grammes ajustables avant d'ajouter.
-- Suivi du jour : protéines, calories et verres d'eau, 18 ajouts rapides, historique des protéines sur 7 jours.
+- Suivi du jour : protéines, calories et verres d'eau, 18 ajouts rapides, historique des protéines sur 7 jours : touche un jour pour voir ses repas (détail des aliments, heure, totaux, eau) et navigue sur les 30 derniers jours.
 - 29 idées de repas par moment, dont des classiques belges, (petit-déj, avant et après séance, avant match…) et conseils autour du volley.
 
 ## Mise en ligne avec GitHub Pages

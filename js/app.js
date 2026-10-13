@@ -2101,6 +2101,7 @@ function renderNutrition() {
   });
   $$('[data-qf]', el).forEach(b => b.onclick = () => { const f = QUICK_FOODS[+b.dataset.qf]; addFood(f.name, f.p, f.kcal); });
   $$('[data-fdel]', el).forEach(b => b.onclick = () => { const l = dayLog(); l.entries = l.entries.filter(x => String(x.id) !== b.dataset.fdel); save(); renderNutrition(); });
+  $$('[data-day]', el).forEach(b => b.onclick = () => openDayLog(b.dataset.day));
   $('#water-add', el).onclick = () => { dayLog().water += 250; save(); renderNutrition(); };
   $('#water-rm', el).onclick = () => { const l = dayLog(); l.water = Math.max(0, l.water - 250); save(); renderNutrition(); };
   $('#food-custom', el).onclick = () => {
@@ -2126,12 +2127,53 @@ function renderNutrition() {
 
 function weekProteinChart(goal) {
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d; });
-  const vals = days.map(d => (state.food[isoDate(d)]?.entries || []).reduce((t, e) => t + e.p, 0));
+  const vals = days.map(d => Math.round((state.food[isoDate(d)]?.entries || []).reduce((t, e) => t + e.p, 0)));
   const max = Math.max(goal || 0, ...vals, 50);
   return `<div class="bars">${days.map((d, i) => `
-    <div class="bars__col"><div class="bars__track">${goal ? `<span class="bars__goal" style="bottom:${goal / max * 100}%"></span>` : ''}<span class="bars__fill ${goal && vals[i] >= goal ? 'ok' : ''}" style="height:${vals[i] / max * 100}%"></span></div>
-    <span class="bars__v">${vals[i] || ''}</span><span class="bars__d">${DAYS_SHORT[weekday(d)]}</span></div>`).join('')}</div>
-    ${goal ? '<p class="muted small">Le trait marque ton objectif de protéines. En menthe : objectif atteint.</p>' : ''}`;
+    <button class="bars__col" type="button" data-day="${isoDate(d)}" aria-label="Voir les repas du ${dayTitle(isoDate(d))}">
+      <span class="bars__track">${goal ? `<span class="bars__goal" style="bottom:${goal / max * 100}%"></span>` : ''}<span class="bars__fill ${goal && vals[i] >= goal ? 'ok' : ''}" style="height:${vals[i] / max * 100}%"></span></span>
+      <span class="bars__v">${vals[i] || ''}</span><span class="bars__d">${DAYS_SHORT[weekday(d)]}</span></button>`).join('')}</div>
+    <p class="muted small">Touche un jour pour voir ses repas.${goal ? ' Le trait marque ton objectif de protéines ; en menthe, objectif atteint.' : ''}</p>`;
+}
+function dayTitle(key) {
+  const d = new Date(key + 'T12:00'), today = isoDate(new Date());
+  const y = new Date(); y.setDate(y.getDate() - 1);
+  const label = `${DAYS[weekday(d)].toLowerCase()} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return key === today ? `aujourd'hui, ${label}` : key === isoDate(y) ? `hier, ${label}` : label;
+}
+/* Repas d'un jour : détail, totaux, suppression, navigation sur 30 jours */
+function openDayLog(key) {
+  const minKey = (() => { const d = new Date(); d.setDate(d.getDate() - 29); return isoDate(d); })();
+  const today = isoDate(new Date());
+  const shift = n => { const d = new Date(key + 'T12:00'); d.setDate(d.getDate() + n); return isoDate(d); };
+  const log = state.food[key] || { entries: [], water: 0 };
+  const tot = log.entries.reduce((t, e) => ({ p: t.p + e.p, kcal: t.kcal + e.kcal }), { p: 0, kcal: 0 });
+  const training = isTrainingDay(new Date(key + 'T12:00')), need = needs(training);
+  const t = dayTitle(key);
+  const body = openSheet(`
+    <div class="day-nav">
+      <button class="icon-btn" type="button" data-dshift="-1" aria-label="Jour précédent" ${key <= minKey ? 'disabled' : ''}>${ICON.left}</button>
+      <h2 class="sheet__title day-nav__t">${esc(t.charAt(0).toUpperCase() + t.slice(1))}</h2>
+      <button class="icon-btn" type="button" data-dshift="1" aria-label="Jour suivant" ${key >= today ? 'disabled' : ''}>${ICON.right}</button>
+    </div>
+    <div class="stats3 stats3--flat">
+      <div class="stat"><p class="stat__value">${fmtNum(Math.round(tot.p * 10) / 10)}</p><p class="stat__label">g de protéines${need ? ` sur ${need.prot}` : ''}</p></div>
+      <div class="stat"><p class="stat__value">${tot.kcal.toLocaleString('fr-BE')}</p><p class="stat__label">kcal${need ? ` sur ${need.kcal.toLocaleString('fr-BE')}` : ''}</p></div>
+      <div class="stat"><p class="stat__value">${fmtNum(log.water / 1000)}</p><p class="stat__label">L d'eau</p></div>
+    </div>
+    ${need ? `<div class="meter meter--p"><span style="width:${Math.min(100, tot.p / need.prot * 100)}%"></span></div>` : ''}
+    <h3 class="sub">Repas (${log.entries.length})</h3>
+    ${log.entries.length ? `<div class="list list--plain">${log.entries.map(e => `
+      <div class="food-row"><span><strong>${esc(e.name)}</strong> <span class="muted small">${e.id > 1e12 ? fmtTime(new Date(e.id).toISOString()) : ''}</span><br>
+        <span class="muted small">${fmtNum(e.p)} g de protéines, ${e.kcal} kcal${e.items ? `<br>${e.items.map(x => `${esc(x.n)} ${x.g} g`).join(', ')}` : ''}</span></span>
+        <button class="icon-btn" type="button" data-ddel="${e.id}" aria-label="Retirer ${esc(e.name)}">${ICON.trash}</button></div>`).join('')}</div>`
+      : '<p class="empty">Aucun repas noté ce jour-là.</p>'}
+  `, { label: 'Repas du ' + t, onClose: () => { if (view === 'nutrition') renderNutrition(); } });
+  $$('[data-dshift]', body).forEach(b => b.onclick = () => openDayLog(shift(+b.dataset.dshift)));
+  $$('[data-ddel]', body).forEach(b => b.onclick = () => {
+    if (!confirm('Retirer ce repas ?')) return;
+    log.entries = log.entries.filter(x => String(x.id) !== b.dataset.ddel); save(); openDayLog(key);
+  });
 }
 
 /* ================= Divers ================= */
@@ -2144,7 +2186,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '20';
+const APP_VERSION = '21';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

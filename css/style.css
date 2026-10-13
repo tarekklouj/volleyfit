@@ -672,3 +672,10 @@ body.has-focus .timer { display: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fig-hair: #3A4C4A; } }
 :root[data-theme="dark"] { --fig-hair: #3A4C4A; }
 .smart textarea { min-height: 48px; }
+
+/* v21 : historique des repas */
+.bars__col { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.bars__track { display: block; }
+.bars__col:active .bars__track { box-shadow: inset 0 0 0 2px var(--court); }
+.day-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 4px; padding-right: 44px; }
+.day-nav__t { padding-right: 0 !important; text-align: center; font-size: 1.5rem; }
