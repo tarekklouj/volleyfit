@@ -1,6 +1,6 @@
 // Cache hors-ligne : l'app fonctionne sans réseau à la salle.
 // Réseau d'abord, en contournant le cache HTTP, pour recevoir les mises à jour tout de suite.
-const VERSION = '18';
+const VERSION = '19';
 const CACHE = 'volleyfit-v' + VERSION;
 const ASSETS = ['./', './index.html', './css/style.css?v=' + VERSION, './js/data.js?v=' + VERSION, './js/figures.js?v=' + VERSION, './js/app.js?v=' + VERSION, './manifest.webmanifest', './icon.svg'];
 

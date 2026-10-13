@@ -661,3 +661,13 @@ body.has-focus .timer { display: none; }
 .smart__g button { width: 40px; }
 .smart__g input { width: 64px; }
 .quick .chip { font-size: .86rem; min-height: 48px; }
+
+/* v19 : visages lisibles, vue de face */
+.fig .hair { fill: var(--fig-hair); stroke: none; }
+.fig .ear { fill: var(--fig-shade); stroke: var(--fig-line); stroke-width: .5; }
+.fig .nose { stroke-width: .6; }
+.fig .face-l { stroke: var(--ink); stroke-width: .9; stroke-linecap: round; opacity: .7; }
+.fig .front .sk { fill: url(#vfSkin); }
+:root { --fig-hair: #4E6260; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fig-hair: #3A4C4A; } }
+:root[data-theme="dark"] { --fig-hair: #3A4C4A; }

@@ -23,14 +23,19 @@ const FIG = (() => {
   function solve(p) {
     const hip = p.hip, sh = add(hip, dir(p.t, T));
     const J = { hip, sh, head: add(sh, dir(p.t, 13)), t: p.t };
+    const lat = dir(p.t - 90, 1);
     for (const i of [0, 1]) {
-      const as = p.as ? p.as[i] : 1;
-      if (p.hands) { [J['e' + i], J['w' + i]] = ik(sh, p.hands[i], U * as, F * as, p.eb ? p.eb[i] : -1); }
-      else { J['e' + i] = add(sh, dir(p.a[2 * i], U * as)); J['w' + i] = add(J['e' + i], dir(p.a[2 * i + 1], F * as)); }
+      const as = p.as ? p.as[i] : 1, sg = i ? -1 : 1;
+      const shi = p.shw ? [sh[0] + lat[0] * p.shw * sg, sh[1] + lat[1] * p.shw * sg] : sh;
+      J['s' + i] = shi;
+      if (p.hands) { [J['e' + i], J['w' + i]] = ik(shi, p.hands[i], U * as, F * as, p.eb ? p.eb[i] : -1); }
+      else { J['e' + i] = add(shi, dir(p.a[2 * i], U * as)); J['w' + i] = add(J['e' + i], dir(p.a[2 * i + 1], F * as)); }
       if (p.wr && p.wr[i]) J['w' + i] = p.wr[i];
       const tl = p.tl ? p.tl[i] : 1;
-      if (p.feet) { [J['k' + i], J['a' + i]] = ik(hip, p.feet[i], L1 * tl, L2, p.kb ? p.kb[i] : 1); }
-      else { J['k' + i] = add(hip, dir(p.l[2 * i], L1 * tl)); J['a' + i] = add(J['k' + i], dir(p.l[2 * i + 1], L2)); }
+      const hpi = p.hw ? [hip[0] + lat[0] * p.hw * sg, hip[1] + lat[1] * p.hw * sg] : hip;
+      J['h' + i] = hpi;
+      if (p.feet) { [J['k' + i], J['a' + i]] = ik(hpi, p.feet[i], L1 * tl, L2, p.kb ? p.kb[i] : 1); }
+      else { J['k' + i] = add(hpi, dir(p.l[2 * i], L1 * tl)); J['a' + i] = add(J['k' + i], dir(p.l[2 * i + 1], L2)); }
       J['t' + i] = add(J['a' + i], dir(p.f ? p.f[i] : 90, FOOT));
     }
     return J;
@@ -226,11 +231,66 @@ const FIG = (() => {
     const e0 = J.e0, armAng = -deg(Math.atan2(e0[0] - sh[0], e0[1] - sh[1])), dc = lerpP(sh, e0, .18);
     const delt = ghost ? '' : `<ellipse class="mu${musCls('delt', tgt)}" cx="${f1(dc[0])}" cy="${f1(dc[1])}" rx="6.4" ry="8" transform="rotate(${f1(armAng)} ${f1(dc[0])} ${f1(dc[1])})"/>`;
     const head = part(sh, J.head, F, PR.neck, PR.neck, 'sk') + `<ellipse class="sk" cx="${f1(J.head[0])}" cy="${f1(J.head[1])}" rx="8.6" ry="9.6" transform="rotate(${f1(-deg(Math.atan2(J.head[0] - sh[0], J.head[1] - sh[1])) + 180)} ${f1(J.head[0])} ${f1(J.head[1])})"/>`;
-    const eye = !ghost && f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 1.8, 'eye') : '';
+    if (f && f.view === 'front') return bodyFront(J, cls, tgt, ghost);
+    // profil : cheveux, oreille, nez et œil indiquent clairement le sens du regard
+    const fw = dir(J.t - 90, 1), up = dir(J.t, 1), hd = J.head;
+    const face = ghost ? '' : `
+      <path class="hair" d="M${f1(hd[0] - fw[0] * 9 + up[0] * 1)},${f1(hd[1] - fw[1] * 9 + up[1] * 1)} Q${f1(hd[0] + up[0] * 13)},${f1(hd[1] + up[1] * 13)} ${f1(hd[0] + fw[0] * 7 + up[0] * 6)},${f1(hd[1] + fw[1] * 7 + up[1] * 6)} L${f1(hd[0] + up[0] * 3)},${f1(hd[1] + up[1] * 3)} Z"/>
+      <ellipse class="ear" cx="${f1(hd[0] - fw[0] * 1.5)}" cy="${f1(hd[1] - fw[1] * 1.5)}" rx="1.8" ry="2.6"/>
+      <polygon class="sk nose" points="${P2([[hd[0] + fw[0] * 7.5 + up[0] * 1.5, hd[1] + fw[1] * 7.5 + up[1] * 1.5], [hd[0] + fw[0] * 11 - up[0] * 1.5, hd[1] + fw[1] * 11 - up[1] * 1.5], [hd[0] + fw[0] * 8 - up[0] * 2.8, hd[1] + fw[1] * 8 - up[1] * 2.8]])}"/>
+      ${circ([hd[0] + fw[0] * 5 + up[0] * 1.6, hd[1] + fw[1] * 5 + up[1] * 1.6], 1.5, 'eye')}`;
+    const eye = face;
     return `<g class="${cls}">
       <g class="far">${leg(1)}${arm(1)}</g>
       <g class="near">${glute}${torso}${head}${eye}${leg(0)}${delt}${arm(0)}</g>
     </g>`;
+  }
+
+
+  /* Vue de face : visage, épaules larges, deux pectoraux, abdos au centre, membres séparés. */
+  function bodyFront(J, cls, tgt, ghost) {
+    const lat = dir(J.t - 90, 1), h = J.hip, sh = J.sh, up = dir(J.t, 1);
+    const at = (t, w) => [h[0] + (sh[0] - h[0]) * t + lat[0] * w, h[1] + (sh[1] - h[1]) * t + lat[1] * w];
+    const trunkAng = -deg(Math.atan2(sh[0] - h[0], sh[1] - h[1]));
+    const ell = (c, rx, ry, k, rot = trunkAng) => `<ellipse class="${k}" cx="${f1(c[0])}" cy="${f1(c[1])}" rx="${rx}" ry="${ry}" transform="rotate(${f1(rot)} ${f1(c[0])} ${f1(c[1])})"/>`;
+    const mc = key => 'mu' + musCls(key, tgt);
+    const SYM = [6.2, 7.6, 4.6, .35], SHIN = [4.6, 5.2, 3.1, .3], ARM = [4.6, 5.6, 3.8, .45], FORE = [4, 4.4, 2.7, .25];
+    const limbs = i => {
+      const hp = J['h' + i], k = J['k' + i], an = J['a' + i], to = J['t' + i], s0 = J['s' + i], e = J['e' + i], w = J['w' + i];
+      const L = i ? [-lat[0], -lat[1]] : lat;
+      let out = part(hp, k, L, SYM, SYM, 'sk') + part(k, an, L, SHIN, SHIN, 'sk') + part(an, to, L, [2.6, 3, 2, .4], [2.6, 3, 2, .4], 'sk')
+        + part(s0, e, L, ARM, ARM, 'sk') + part(e, w, L, FORE, FORE, 'sk') + `<circle class="sk" cx="${f1(w[0])}" cy="${f1(w[1])}" r="3.6"/>`;
+      if (!ghost) {
+        const q = musCls('quads', tgt);
+        out += muscle(hp, k, L, 1, SYM, .08, .9, q, { inset: 0 }) + muscle(hp, k, L, -1, SYM, .08, .9, q, { inset: 0 })
+          + muscle(k, an, L, 1, SHIN, .05, .55, musCls('calf', tgt), { inset: .2, fib: 0 })
+          + muscle(s0, e, L, 1, ARM, .2, .9, musCls('triceps', tgt), { inset: .35, fib: 0 })
+          + muscle(s0, e, L, -1, ARM, .18, .92, musCls('biceps', tgt), { inset: 0 })
+          + `<circle class="sk" cx="${f1(k[0])}" cy="${f1(k[1])}" r="4.4"/>`
+          + ell(s0, 7, 6.2, mc('delt'), 0);
+      }
+      return out;
+    };
+    const torso = `<polygon class="sk" points="${P2([at(0, 9), at(.38, 7.8), at(.8, 12.5), at(1, 13), at(1, -13), at(.8, -12.5), at(.38, -7.8), at(0, -9)])}"/>`;
+    let mus = '';
+    if (!ghost) {
+      const ab = at(.36, 0);
+      mus = ell(at(.79, 6), 6.4, 4.6, mc('pecs')) + ell(at(.79, -6), 6.4, 4.6, mc('pecs'))
+        + `<rect class="${mc('abs')}" x="${f1(ab[0] - 4.6)}" y="${f1(ab[1] - 11)}" width="9.2" height="22" rx="3.5" transform="rotate(${f1(trunkAng)} ${f1(ab[0])} ${f1(ab[1])})"/>`
+        + [-.62, 0, .62].map(t => { const c = at(.36 + t * .17, 0); return `<line class="fib ab${musCls('abs', tgt) ? ' fib-c' : ''}" x1="${f1(c[0] - lat[0] * 4.4)}" y1="${f1(c[1] - lat[1] * 4.4)}" x2="${f1(c[0] + lat[0] * 4.4)}" y2="${f1(c[1] + lat[1] * 4.4)}"/>`; }).join('')
+        + `<line class="fib ab${musCls('abs', tgt) ? ' fib-c' : ''}" x1="${f1(at(.14, 0)[0])}" y1="${f1(at(.14, 0)[1])}" x2="${f1(at(.58, 0)[0])}" y2="${f1(at(.58, 0)[1])}"/>`
+        + ell(at(.36, 8), 2.6, 7, mc('abs')) + ell(at(.36, -8), 2.6, 7, mc('abs'))
+        + ell(at(.62, 10.6), 2.4, 6.5, mc('lats')) + ell(at(.62, -10.6), 2.4, 6.5, mc('lats'))
+        + ell(at(.98, 6.5), 5, 2.4, mc('traps')) + ell(at(.98, -6.5), 5, 2.4, mc('traps'))
+        + ell(at(-.02, 8.5), 3, 4.5, mc('glute')) + ell(at(-.02, -8.5), 3, 4.5, mc('glute'));
+    }
+    const hd = J.head;
+    const head = part(sh, hd, lat, [3.6, 3.8, 3.6, .5], [3.6, 3.8, 3.6, .5], 'sk') + ell(hd, 8.4, 10, 'sk')
+      + (ghost ? '' : `<path class="hair" d="M${f1(hd[0] - lat[0] * 8.6 + up[0] * 1)},${f1(hd[1] - lat[1] * 8.6 + up[1] * 1)} Q${f1(hd[0] + up[0] * 15)},${f1(hd[1] + up[1] * 15)} ${f1(hd[0] + lat[0] * 8.6 + up[0] * 1)},${f1(hd[1] + lat[1] * 8.6 + up[1] * 1)} Q${f1(hd[0] + up[0] * 7)},${f1(hd[1] + up[1] * 7)} ${f1(hd[0] - lat[0] * 8.6 + up[0] * 1)},${f1(hd[1] - lat[1] * 8.6 + up[1] * 1)} Z"/>`
+        + circ([hd[0] + lat[0] * 3.2 + up[0] * 1, hd[1] + lat[1] * 3.2 + up[1] * 1], 1.4, 'eye') + circ([hd[0] - lat[0] * 3.2 + up[0] * 1, hd[1] - lat[1] * 3.2 + up[1] * 1], 1.4, 'eye')
+        + `<line class="face-l" x1="${f1(hd[0] - up[0] * .5)}" y1="${f1(hd[1] - up[1] * .5)}" x2="${f1(hd[0] - up[0] * 3)}" y2="${f1(hd[1] - up[1] * 3)}"/>`
+        + `<line class="face-l" x1="${f1(hd[0] - lat[0] * 2.4 - up[0] * 5.2)}" y1="${f1(hd[1] - lat[1] * 2.4 - up[1] * 5.2)}" x2="${f1(hd[0] + lat[0] * 2.4 - up[0] * 5.2)}" y2="${f1(hd[1] + lat[1] * 2.4 - up[1] * 5.2)}"/>`);
+    return `<g class="${cls} front">${limbs(1)}${torso}${mus}${limbs(0)}${head}</g>`;
   }
 
   function propsBack(f, J) {
@@ -633,6 +693,7 @@ const FIG = (() => {
   DEFS['pec-deck'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, false, tr) };
   DEFS['cable-fly'] = { view: 'top', dur: 3600, draw: (u, tr) => flyTop(u, true, tr) };
 
+  for (const f of Object.values(DEFS)) if (f.view === 'front' && f.p0) { for (const p of [f.p0, f.p1]) { if (p) { p.shw = 12; p.hw = 5.5; } } f._act = undefined; f._trail = undefined; }
   const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
   const HINTS = {
     'smith-bench': "Vue de côté, allongé sur le banc. La barre guidée descend vers le bas des pectoraux puis remonte bras presque tendus.",
