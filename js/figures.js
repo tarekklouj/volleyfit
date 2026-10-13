@@ -730,6 +730,10 @@ const FIG = (() => {
     { hip: [100, 73], t: 180, a: [12, 8, -12, -8], l: [4, 0, -4, 0], f: [90, -90] },
     { hip: [100, 70], a: [160, 170, -160, -170], l: [22, 18, -22, -18] },
     { view: 'front', loop: true, dur: 1100 });
+  DEFS['ytw-sol'] = D(
+    { hip: [84, 130], t: 92, a: [97, 97, 95, 95], l: [-90, -90, -92, -92], f: [0, 0] },
+    { t: 96, a: [116, 116, 114, 114] },
+    { dur: 2600 });
   DEFS['band-row'] = D(
     { hip: [70, 128], t: 178, a: [92, 92, 90, 90], feet: [[128, 134], [126, 134]], f: [170, 170] },
     { t: 186, a: [-40, 85, -42, 85] },
@@ -748,6 +752,7 @@ const FIG = (() => {
   for (const f of Object.values(DEFS)) if (f.view === 'front' && f.p0) { for (const p of [f.p0, f.p1]) { if (p) { p.shw = 12; p.hw = 5.5; } } f._act = undefined; f._trail = undefined; }
   const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
   const HINTS = {
+    'ytw-sol': "Vue de côté, allongé sur le ventre. Les bras tendus en Y décollent du sol, la tête reste basse.",
     pompe: "Vue de côté. Le corps reste droit comme une planche, la poitrine descend vers le sol.",
     'squat-pdc': "Vue de côté. Les hanches reculent comme pour s'asseoir, les bras devant pour l'équilibre.",
     fentes: "Vue de côté. Un grand pas en avant, le genou arrière descend vers le sol.",

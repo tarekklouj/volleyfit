@@ -396,7 +396,7 @@ function openExercise(id) {
     </div>
     <h2 class="sheet__title">${esc(e.name)}</h2>
     <div class="tags"><span class="pill">${esc(e.zone)}</span><span class="pill">${esc(e.equip)}</span></div>
-    <label class="field ex-note"><span>Mes réglages sur cette machine</span><textarea id="ex-note" rows="2" placeholder="Ex. : siège 4, dossier 2, poignées hautes">${esc(state.exNotes[id] || '')}</textarea></label>
+    <label class="field ex-note"><span>${e.zone === 'Maison' ? 'Mes notes' : 'Mes réglages sur cette machine'}</span><textarea id="ex-note" rows="2" placeholder="${e.zone === 'Maison' ? 'Ex. : élastique rouge, pieds écartés' : 'Ex. : siège 4, dossier 2, poignées hautes'}">${esc(state.exNotes[id] || '')}</textarea></label>
     ${LOADS[id] ? loadTableHTML(id) : ''}
     <h3 class="sub">Muscles ciblés</h3>
     ${musclesHTML(e)}
@@ -2222,7 +2222,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '25';
+const APP_VERSION = '26';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
