@@ -1256,8 +1256,7 @@ function renderGroup(el, key, head) {
     <section class="panel"><h2>Exercices principaux</h2><div class="list">${main.map(row).join('')}</div></section>
     ${also.length ? `<section class="panel"><h2>Travaillent aussi ${g ? g.label.toLowerCase() : ''}</h2><div class="list">${also.map(row).join('')}</div></section>` : ''}
     ${home.length ? `<section class="panel home-panel"><div class="panel__head"><h2>À la maison, sans machine</h2><span class="pill">poids du corps ou élastique</span></div>
-      <div class="list">${homeMain.map(row).join('')}</div>
-      ${homeAlso.length ? `<h3 class="sub">Travaillent aussi ${g.label.toLowerCase()}</h3><div class="list">${homeAlso.map(row).join('')}</div>` : ''}</section>` : ''}`;
+      <div class="list">${[...homeMain, ...homeAlso].map(row).join('')}</div></section>` : ''}`;
   $('#grp-back', el).onclick = () => { musGroup = null; renderMuscles(); };
   $$('[data-ex]', el).forEach(b => b.onclick = () => openExercise(b.dataset.ex));
 }
@@ -2228,7 +2227,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '27';
+const APP_VERSION = '28';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
