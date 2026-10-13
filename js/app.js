@@ -595,11 +595,18 @@ function renderToday() {
   const p = state.profile;
   const hello = p.name ? `Salut ${esc(p.name)}. ` : '';
   let hero;
+  // prochaine séance prévue (pour motiver les jours sans salle)
+  let nextTxt = '';
+  for (let k = 1; k <= 7; k++) {
+    const c = plan[(wd + k) % 7];
+    if (SESSIONS[c]) { nextTxt = `${k === 1 ? 'Demain' : DAYS[(wd + k) % 7]} : séance ${c}, ${SESSIONS[c].name.toLowerCase()}`; break; }
+  }
   if (code === 'M') {
-    hero = `<section class="court" style="--sess:#141414">${NET}
+    hero = `<section class="court court--dark">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
-      <h1 class="court__title">Jour de match</h1>
+      <h1 class="court__title">Jour de <span class="hl">match</span></h1>
       <p class="court__meta">Pas de salle aujourd'hui. Avant le match : 5 minutes de rotations d'épaules à l'élastique et quelques sauts progressifs.</p>
+      ${nextTxt ? `<p class="court__facts"><span>${esc(nextTxt)}</span></p>` : ''}
     </section>`;
   } else if (SESSIONS[code]) {
     const s = SESSIONS[code];
@@ -611,12 +618,14 @@ function renderToday() {
       <div class="btn-row"><button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>${TEMPLATE[code].fixed ? '' : `<button class="btn btn--court-ghost" data-reroll="${code}" type="button">${ICON.swap} Autres exercices</button>`}</div>
     </section>`;
   } else {
-    hero = `<section class="court" style="--sess:#4A4A48">${NET}
+    hero = `<section class="court court--dark court--rest">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
-      <h1 class="court__title">Jour de repos</h1>
+      <h1 class="court__title">Jour de <span class="hl">repos</span></h1>
       <p class="court__meta">Les muscles se construisent pendant la récupération. Marche, étire-toi, dors bien.</p>
+      ${nextTxt ? `<p class="court__facts"><span>${ICON.play} ${esc(nextTxt)}</span></p>` : ''}
     </section>`;
   }
+
 
   const goal = weeklyGoal(), done = weekCount(weekStart(now)), st = streak();
   const last = state.history[0];
@@ -2203,7 +2212,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '23';
+const APP_VERSION = '24';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

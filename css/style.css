@@ -736,3 +736,20 @@ body.has-focus .timer { display: none; }
 .tab[aria-current="page"] { color: var(--court); }
 .suggest { background: color-mix(in srgb, var(--ball) 30%, transparent); }
 .suggest--start { background: color-mix(in srgb, var(--court) 12%, transparent); }
+
+/* v24 : cartes repos et match */
+.court--dark { --sess: #161616; background: #161616; box-shadow: inset 0 0 0 1.5px rgba(255, 77, 31, .45); }
+.court--dark::before, .court--dark::after { border-color: rgba(255, 90, 44, .35); }
+.court--dark .court__net {
+  background:
+    linear-gradient(#FF5A2C, #FF5A2C) left bottom / 100% 4px no-repeat,
+    repeating-linear-gradient(90deg, rgba(255, 90, 44, .5) 0 1px, transparent 1px 8px),
+    repeating-linear-gradient(0deg, rgba(255, 90, 44, .5) 0 1px, transparent 1px 8px);
+}
+.court--dark .hl { color: #FF5A2C; }
+.court--rest .hl { color: #FFC400; }
+.court--rest { box-shadow: inset 0 0 0 1.5px rgba(255, 196, 0, .4); }
+.court--rest::before, .court--rest::after { border-color: rgba(255, 196, 0, .3); }
+.court--dark .court__facts span { background: rgba(255, 255, 255, .1); display: inline-flex; align-items: center; gap: 6px; }
+.court--dark .court__facts svg { width: 14px; height: 14px; fill: #FF5A2C; }
+.court--dark .court__meta { color: #D6D6D3; opacity: 1; }
