@@ -162,7 +162,7 @@ function applyTheme() {
   const t = state.profile.theme, root = document.documentElement;
   if (t === 'light' || t === 'dark') root.dataset.theme = t; else delete root.dataset.theme;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = getComputedStyle(root).getPropertyValue('--bg').trim() || '#EEF4F2';
+  if (meta) meta.content = getComputedStyle(root).getPropertyValue('--bg').trim() || '#F4F4F2';
 }
 darkQuery.addEventListener?.('change', applyTheme);
 applyTheme();
@@ -227,7 +227,7 @@ function fitSession(code, warmMin = state.profile.warmupMin, light = false) {
   if (cool && cool < 3) cool = 0;
   return { plan: plan.filter(p => p.on), cool, minutes: Math.round(total() / 60) };
 }
-const FREE_SESSION = { name: 'Séance libre', color: '#0F7C78', warmup: 'tapis', goal: 'Exercices choisis par toi.', warmNote: 'Échauffe-toi 5 à 10 minutes avant de commencer.', items: [] };
+const FREE_SESSION = { name: 'Séance libre', color: '#E8431A', warmup: 'tapis', goal: 'Exercices choisis par toi.', warmNote: 'Échauffe-toi 5 à 10 minutes avant de commencer.', items: [] };
 const sessionOf = code => SESSIONS[code] || FREE_SESSION;
 const estimateMinutes = s => fitSession(Object.keys(SESSIONS).find(k => SESSIONS[k] === s)).minutes;
 function targetText(it) {
@@ -596,7 +596,7 @@ function renderToday() {
   const hello = p.name ? `Salut ${esc(p.name)}. ` : '';
   let hero;
   if (code === 'M') {
-    hero = `<section class="court" style="--sess:#12302F">${NET}
+    hero = `<section class="court" style="--sess:#141414">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
       <h1 class="court__title">Jour de match</h1>
       <p class="court__meta">Pas de salle aujourd'hui. Avant le match : 5 minutes de rotations d'épaules à l'élastique et quelques sauts progressifs.</p>
@@ -611,7 +611,7 @@ function renderToday() {
       <div class="btn-row"><button class="btn btn--court" data-start="${code}" type="button">${ICON.play} Commencer la séance</button>${TEMPLATE[code].fixed ? '' : `<button class="btn btn--court-ghost" data-reroll="${code}" type="button">${ICON.swap} Autres exercices</button>`}</div>
     </section>`;
   } else {
-    hero = `<section class="court" style="--sess:#557270">${NET}
+    hero = `<section class="court" style="--sess:#4A4A48">${NET}
       <p class="court__kicker">${hello}${DAYS[wd]}</p>
       <h1 class="court__title">Jour de repos</h1>
       <p class="court__meta">Les muscles se construisent pendant la récupération. Marche, étire-toi, dors bien.</p>
@@ -2203,7 +2203,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '22';
+const APP_VERSION = '23';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

@@ -289,7 +289,7 @@ const WARMUP_MACHINES = ["tapis", "velo", "rameur", "elliptique", "escalier"];
    (réglage « Variété » dans Profil). "ex" seul = exercice toujours présent.
    ========================================================= */
 const TEMPLATE = {
-  A: { name: "Jambes & détente", color: "#C9402F", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
+  A: { name: "Jambes & détente", color: "#FF4D1F", warmup: "velo", cooldown: { ex: "tapis", max: 10 },
     goal: "Pousser plus fort et plus vite, des jambes plus musclées, genoux protégés.",
     warmNote: "Progressif : facile au début, transpiration légère à la fin. Termine par 3 accélérations courtes.",
     items: [
@@ -301,7 +301,7 @@ const TEMPLATE = {
       { slot: "Fessiers et hanches", pool: ["kickback", "abducteurs", "hip-thrust"], sets: 3, reps: "12", rest: 60, repsBy: { kickback: "12 par jambe", abducteurs: "15" } },
       { slot: "Mollets", pool: ["mollets-presse", "mollets-smith"], sets: 3, reps: "15", rest: 60 }
     ] },
-  B: { name: "Haut du corps", color: "#5A49C8", warmup: "rameur", cooldown: { ex: "velo", max: 10 },
+  B: { name: "Haut du corps", color: "#D98200", warmup: "rameur", cooldown: { ex: "velo", max: 10 },
     goal: "Pectoraux, dos, épaules et bras plus épais, avec une coiffe des rotateurs solide.",
     warmNote: "Rythme régulier, épaules relâchées. Termine par 3 fois 30 secondes plus rapides.",
     items: [
@@ -314,7 +314,7 @@ const TEMPLATE = {
       { slot: "Biceps", pool: ["biceps-curl-cable", "biceps-machine", "hammer-rope"], sets: 3, reps: "12", rest: 60 },
       { slot: "Triceps", pool: ["triceps-pushdown", "triceps-overhead", "dips-assist"], sets: 3, reps: "12", rest: 60, repsBy: { "dips-assist": "10" } }
     ] },
-  C: { name: "Puissance & gainage", color: "#1F6FA8", warmup: "tapis", cooldown: { ex: "elliptique", max: 10 },
+  C: { name: "Puissance & gainage", color: "#15924A", warmup: "tapis", cooldown: { ex: "elliptique", max: 10 },
     goal: "Hanches puissantes, tronc stable en l'air, et un complément pectoraux et dos.",
     warmNote: "Footing léger ou marche en pente. Tu dois pouvoir parler pendant l'effort.",
     items: [
@@ -327,7 +327,7 @@ const TEMPLATE = {
       { slot: "Abdominaux", ex: "crunch-machine", sets: 3, reps: "15", rest: 45 },
       { slot: "Cardio fractionné", ex: "fractionne", duration: 8 }
     ] },
-  R: { name: "Récupération", color: "#557270", warmup: "velo", cooldown: { ex: "elliptique", max: 15 }, fixed: true,
+  R: { name: "Récupération", color: "#4A4A48", warmup: "velo", cooldown: { ex: "elliptique", max: 15 }, fixed: true,
     goal: "Le lendemain d'un match : bouger sans fatiguer.",
     warmNote: "Très facile, résistance basse : le but est de faire circuler le sang.",
     items: [

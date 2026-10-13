@@ -687,3 +687,52 @@ body.has-focus .timer { display: none; }
 .bars-wrap--long .bars__v { font-size: .7rem; }
 .day-list .row__value { color: var(--muted); }
 .day-list .row__value.day-ok { color: var(--good); }
+
+/* =========================================================
+   v23 : palette « Énergie » (rouge-orange, jaune, vert, noir)
+   ========================================================= */
+:root {
+  --bg: #F4F4F2; --surface: #FFFFFF; --surface-2: #F3F3F1; --ink: #141414; --muted: #5C5C5C; --line: #E1E1DE;
+  --court: #E8431A; --ball: #FFC400; --good: #15924A; --danger: #C81E1E;
+  --fig-far: #A8A8A4; --eq: #DCDCD8; --eq-dark: #8A8A86; --thumb: #EDEDEA;
+  --accent: #FF4D1F; --accent-soft: #FFB49C; --accent-ink: #C7320A; --body-base: #E6E6E3; --muscle: #CFCFCB;
+  --fig-hi: #F0F0EE; --fig-body: #C2C2BE; --fig-shade: #93938F; --fig-far-hi: #BEBEBA; --fig-far-shade: #858581;
+  --fig-mus-hi: #DCDCD9; --fig-mus: #B0B0AC; --fig-mus-shade: #8E8E8A; --fig-line: rgba(30, 30, 30, .5);
+  --mus-p-hi: #FF8A66; --mus-p-shade: #C2300A; --mus-s-hi: #FFE0D4; --fig-hair: #3A3A38;
+  --fig-body-far: #9A9A96; --fig-head: #A8A8A4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121212; --surface: #1E1E1E; --surface-2: #272727; --ink: #F5F5F4; --muted: #A3A3A0; --line: #313131;
+    --court: #FF5A2C; --ball: #FFC400; --good: #3DDC84; --danger: #FF6B6B;
+    --fig-far: #5A5A58; --eq: #343434; --eq-dark: #707070; --thumb: #1A1A1A;
+    --accent: #FF5A2C; --accent-soft: #7A3420; --accent-ink: #FF8A66; --body-base: #2A2A2A; --muscle: #3A3A3A;
+    --fig-hi: #E2E2E0; --fig-body: #B2B2AE; --fig-shade: #868682; --fig-far-hi: #8E8E8B; --fig-far-shade: #5F5F5C;
+    --fig-mus-hi: #C9C9C6; --fig-mus: #A0A09C; --fig-mus-shade: #7C7C78; --fig-line: rgba(0, 0, 0, .6);
+    --mus-s-hi: #FFC9B6; --fig-hair: #2A2A28; --fig-body-far: #6E6E6B; --fig-head: #9C9C98;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121212; --surface: #1E1E1E; --surface-2: #272727; --ink: #F5F5F4; --muted: #A3A3A0; --line: #313131;
+  --court: #FF5A2C; --ball: #FFC400; --good: #3DDC84; --danger: #FF6B6B;
+  --fig-far: #5A5A58; --eq: #343434; --eq-dark: #707070; --thumb: #1A1A1A;
+  --accent: #FF5A2C; --accent-soft: #7A3420; --accent-ink: #FF8A66; --body-base: #2A2A2A; --muscle: #3A3A3A;
+  --fig-hi: #E2E2E0; --fig-body: #B2B2AE; --fig-shade: #868682; --fig-far-hi: #8E8E8B; --fig-far-shade: #5F5F5C;
+  --fig-mus-hi: #C9C9C6; --fig-mus: #A0A09C; --fig-mus-shade: #7C7C78; --fig-line: rgba(0, 0, 0, .6);
+  --mus-s-hi: #FFC9B6; --fig-hair: #2A2A28; --fig-body-far: #6E6E6B; --fig-head: #9C9C98;
+}
+/* séries validées, jours faits : vert énergie ; repères : jaune */
+.check[aria-pressed="true"], .week__code.is-done { background: var(--good); color: #0B2A17; }
+.sets__row.is-done { background: color-mix(in srgb, var(--good) 18%, transparent); }
+.wx.is-complete { box-shadow: inset 0 0 0 2px var(--good); }
+.goalbar span.on, .bars__fill.ok { background: var(--good); }
+.timer__btn--skip, .resume { background: var(--ball); color: #2B2100; }
+.group-card { background: #141414; }
+.court__facts span { background: rgba(0, 0, 0, .18); }
+.btn--court { color: #141414; }
+.prog { border-top-color: var(--sess); }
+.chip[aria-pressed="true"], .seg--wide button[aria-pressed="true"] { background: var(--court); color: #fff; }
+.days button[aria-pressed="true"] { background: var(--court); }
+.tab[aria-current="page"] { color: var(--court); }
+.suggest { background: color-mix(in srgb, var(--ball) 30%, transparent); }
+.suggest--start { background: color-mix(in srgb, var(--court) 12%, transparent); }
