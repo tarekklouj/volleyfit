@@ -1074,16 +1074,16 @@ setInterval(tickElapsed, 1000);
 /* ================= Mode focus : un exercice à la fois ================= */
 let focusIdx = 0, focusAnim = null;
 const GROUPS = [
-  { k: 'pectoraux', label: 'Pectoraux', m: ['pectoraux'], side: 'front', crop: 'upper' },
-  { k: 'dos', label: 'Dos', m: ['dorsaux', 'trapezes', 'lombaires'], side: 'back', crop: 'upper' },
-  { k: 'epaules', label: 'Épaules', m: ['deltoides', 'deltoides-arr', 'coiffe'], side: 'front', crop: 'upper' },
-  { k: 'bras', label: 'Bras', m: ['biceps', 'triceps'], side: 'front', crop: 'upper' },
-  { k: 'abdos', label: 'Abdominaux', m: ['abdos', 'obliques'], side: 'front', crop: 'torso' },
-  { k: 'cuisses', label: 'Cuisses', m: ['quadriceps', 'ischios', 'adducteurs'], side: 'front', crop: 'lower' },
-  { k: 'fessiers', label: 'Fessiers', m: ['fessiers', 'abducteurs'], side: 'back', crop: 'hips' },
-  { k: 'mollets', label: 'Mollets', m: ['mollets'], side: 'back', crop: 'calves' }
+  { k: 'pectoraux', label: 'Pectoraux', m: ['pectoraux'], sm: ['pectoraux'], side: 'front', crop: 'upper' },
+  { k: 'dos', label: 'Dos', m: ['dorsaux', 'trapezes', 'lombaires'], sm: ['dorsaux'], side: 'back', crop: 'upper' },
+  { k: 'epaules', label: 'Épaules', m: ['deltoides', 'deltoides-arr', 'coiffe'], sm: ['deltoides', 'deltoides-arr', 'coiffe'], side: 'front', crop: 'upper' },
+  { k: 'bras', label: 'Bras', m: ['biceps', 'triceps'], sm: ['biceps', 'triceps'], side: 'front', crop: 'upper' },
+  { k: 'abdos', label: 'Abdominaux', m: ['abdos', 'obliques'], sm: ['abdos', 'obliques'], side: 'front', crop: 'torso' },
+  { k: 'cuisses', label: 'Cuisses', m: ['quadriceps', 'ischios', 'adducteurs'], sm: ['quadriceps', 'ischios'], side: 'front', crop: 'lower' },
+  { k: 'fessiers', label: 'Fessiers', m: ['fessiers', 'abducteurs'], sm: ['fessiers'], side: 'back', crop: 'hips' },
+  { k: 'mollets', label: 'Mollets', m: ['mollets'], sm: ['mollets'], side: 'back', crop: 'calves' }
 ];
-const groupOf = e => GROUPS.find(g => (e?.target?.p || []).some(m => g.m.includes(m)));
+const groupOf = e => GROUPS.find(g => g.m.includes(e?.target?.p?.[0]));
 const ring = (pct, inner, label, id = '') => `<div class="ring" ${id ? `id="${id}"` : ''}>
     <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="ring__bg" cx="40" cy="40" r="34"/><circle class="ring__fg" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="${(213.6 * (1 - pct)).toFixed(1)}"/></svg>
     <span class="ring__v">${inner}</span><span class="ring__l">${label}</span></div>`;
@@ -1219,7 +1219,13 @@ function renderMuscles() {
   else renderGroups(el, head);
   $$('[data-mmode]', el).forEach(b => b.onclick = () => { musMode = b.dataset.mmode; musGroup = null; renderMuscles(); });
 }
-const exOfGroup = (g, which = 'p') => Object.entries(EX).filter(([, e]) => (e.target?.[which] || []).some(m => g.m.includes(m))).map(([id]) => id);
+const NOT_STRENGTH = id => ['Cardio', 'Étirements'].includes(EX[id].zone) || /^echauffement|^etirements/.test(id);
+const exOfGroup = (g, which = 'p') => Object.entries(EX).filter(([id, e]) => {
+  if (NOT_STRENGTH(id)) return false;
+  const p = e.target?.p || [], s = e.target?.s || [];
+  if (which === 'p') return g.m.includes(p[0]);
+  return !g.m.includes(p[0]) && [...p.slice(1), ...s].some(m => g.sm.includes(m));
+}).map(([id]) => id);
 function renderGroups(el, head) {
   el.innerHTML = `${head}
     <div class="groups">${GROUPS.map(g => `
@@ -1238,7 +1244,7 @@ function renderGroup(el, key, head) {
   const also = g ? exOfGroup(g, 's').filter(id => !main.includes(id) && !atHome(id)) : [];
   const home = g ? [...exOfGroup(g, 'p'), ...exOfGroup(g, 's')].filter((id, i, arr) => atHome(id) && arr.indexOf(id) === i && !/^echauffement|^etirements/.test(id))
     : Object.keys(EX).filter(id => /^echauffement-maison|^etirements-maison/.test(id));
-  const homeMain = g ? home.filter(id => (EX[id].target.p || []).some(m => g.m.includes(m))) : home;
+  const homeMain = g ? home.filter(id => g.m.includes(EX[id].target.p?.[0])) : home;
   const homeAlso = home.filter(id => !homeMain.includes(id));
   const row = id => `<button class="row" type="button" data-ex="${id}">${exThumb(id, 'thumb--sm')}<span class="row__main"><strong>${esc(EX[id].name)}</strong><br><span class="muted small">${esc(EX[id].equip)}</span></span>${ICON.right}</button>`;
   el.innerHTML = `${head}
@@ -2222,7 +2228,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '26';
+const APP_VERSION = '27';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
