@@ -1917,7 +1917,7 @@ const OBJECTIVES = {
   maintien: { label: 'Maintien', kcal: 0, prot: 1.6, desc: 'Garder ton poids et performer sur le terrain.' },
   perte: { label: 'Perte de gras', kcal: -450, prot: 2.0, desc: 'Déficit modéré qui préserve tes muscles et ton énergie.' }
 };
-let mealMoment = 'tous', smartDraft = '', smartItems = [], smartUnknown = [], smartSource = '';
+let foodRange = 7, mealMoment = 'tous', smartDraft = '', smartItems = [], smartUnknown = [], smartSource = '';
 const todayKey = () => isoDate(new Date());
 function dayLog(key = todayKey()) {
   if (!state.food[key]) state.food[key] = { entries: [], water: 0 };
@@ -2020,8 +2020,10 @@ function renderNutrition() {
     </section>
 
     <section class="panel">
-      <div class="panel__head"><h2>7 derniers jours</h2><span class="muted small">protéines</span></div>
-      ${weekProteinChart(need?.prot)}
+      <div class="panel__head"><h2>Historique</h2><span class="muted small">protéines par jour</span></div>
+      <div class="seg" role="group" aria-label="Période">${[[7, '7 jours'], [30, '30 jours']].map(([k, l]) => `<button type="button" data-frange="${k}" aria-pressed="${foodRange === k}">${l}</button>`).join('')}</div>
+      ${weekProteinChart(need?.prot, foodRange)}
+      ${foodRange === 30 ? foodDaysList(need) : ''}
     </section>
 
     <section class="panel">
@@ -2102,6 +2104,8 @@ function renderNutrition() {
   $$('[data-qf]', el).forEach(b => b.onclick = () => { const f = QUICK_FOODS[+b.dataset.qf]; addFood(f.name, f.p, f.kcal); });
   $$('[data-fdel]', el).forEach(b => b.onclick = () => { const l = dayLog(); l.entries = l.entries.filter(x => String(x.id) !== b.dataset.fdel); save(); renderNutrition(); });
   $$('[data-day]', el).forEach(b => b.onclick = () => openDayLog(b.dataset.day));
+  $$('[data-frange]', el).forEach(b => b.onclick = () => { foodRange = +b.dataset.frange; renderNutrition(); });
+  $$('.bars-wrap--long', el).forEach(w => { w.scrollLeft = w.scrollWidth; });
   $('#water-add', el).onclick = () => { dayLog().water += 250; save(); renderNutrition(); };
   $('#water-rm', el).onclick = () => { const l = dayLog(); l.water = Math.max(0, l.water - 250); save(); renderNutrition(); };
   $('#food-custom', el).onclick = () => {
@@ -2125,15 +2129,28 @@ function renderNutrition() {
   };
 }
 
-function weekProteinChart(goal) {
-  const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); return d; });
+function weekProteinChart(goal, n = 7) {
+  const days = Array.from({ length: n }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (n - 1) + i); return d; });
   const vals = days.map(d => Math.round((state.food[isoDate(d)]?.entries || []).reduce((t, e) => t + e.p, 0)));
   const max = Math.max(goal || 0, ...vals, 50);
-  return `<div class="bars">${days.map((d, i) => `
+  return `<div class="bars-wrap ${n > 7 ? 'bars-wrap--long' : ''}"><div class="bars" style="grid-template-columns:repeat(${n}, ${n > 7 ? '26px' : '1fr'})">${days.map((d, i) => `
     <button class="bars__col" type="button" data-day="${isoDate(d)}" aria-label="Voir les repas du ${dayTitle(isoDate(d))}">
       <span class="bars__track">${goal ? `<span class="bars__goal" style="bottom:${goal / max * 100}%"></span>` : ''}<span class="bars__fill ${goal && vals[i] >= goal ? 'ok' : ''}" style="height:${vals[i] / max * 100}%"></span></span>
-      <span class="bars__v">${vals[i] || ''}</span><span class="bars__d">${DAYS_SHORT[weekday(d)]}</span></button>`).join('')}</div>
+      <span class="bars__v">${vals[i] || ''}</span><span class="bars__d">${n > 7 ? d.getDate() : DAYS_SHORT[weekday(d)]}</span></button>`).join('')}</div></div>
     <p class="muted small">Touche un jour pour voir ses repas.${goal ? ' Le trait marque ton objectif de protéines ; en menthe, objectif atteint.' : ''}</p>`;
+}
+function foodDaysList(need) {
+  const keys = Object.keys(state.food).filter(k => (state.food[k].entries || []).length || state.food[k].water).sort().reverse();
+  if (!keys.length) return '<p class="empty">Aucun repas noté sur les 30 derniers jours.</p>';
+  const tot = k => (state.food[k].entries || []).reduce((t, e) => ({ p: t.p + e.p, kcal: t.kcal + e.kcal }), { p: 0, kcal: 0 });
+  const avgP = Math.round(keys.reduce((t, k) => t + tot(k).p, 0) / keys.length);
+  const avgK = Math.round(keys.reduce((t, k) => t + tot(k).kcal, 0) / keys.length);
+  return `<p class="muted small">Moyenne sur ${plural(keys.length, 'jour')} noté${keys.length > 1 ? 's' : ''} : <strong>${avgP} g</strong> de protéines et <strong>${avgK.toLocaleString('fr-BE')} kcal</strong> par jour.</p>
+    <div class="list day-list">${keys.map(k => { const t = tot(k), n = state.food[k].entries.length, ok = need && t.p >= need.prot; const title = dayTitle(k); return `
+      <button class="row" type="button" data-day="${k}">
+        <span class="row__main"><strong>${esc(title.charAt(0).toUpperCase() + title.slice(1))}</strong><br><span class="muted small">${plural(n, 'repas').replace('repass', 'repas')}, ${t.kcal.toLocaleString('fr-BE')} kcal</span></span>
+        <span class="row__value ${ok ? 'day-ok' : ''}">${fmtNum(Math.round(t.p))} g</span>${ICON.right}
+      </button>`; }).join('')}</div>`;
 }
 function dayTitle(key) {
   const d = new Date(key + 'T12:00'), today = isoDate(new Date());
@@ -2186,7 +2203,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '21';
+const APP_VERSION = '22';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
