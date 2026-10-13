@@ -671,3 +671,4 @@ body.has-focus .timer { display: none; }
 :root { --fig-hair: #4E6260; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fig-hair: #3A4C4A; } }
 :root[data-theme="dark"] { --fig-hair: #3A4C4A; }
+.smart textarea { min-height: 48px; }

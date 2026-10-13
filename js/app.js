@@ -2008,7 +2008,7 @@ function renderNutrition() {
       </div>
       <h3 class="sub">Écris ce que tu as mangé</h3>
       <div class="smart">
-        <textarea id="smart-in" rows="2" placeholder="Ex. : pâtes sauce blanche avec mozzarella et 200 g de filet de poulet, un yaourt">${esc(smartDraft)}</textarea>
+        <textarea id="smart-in" rows="1" placeholder="Ex. : riz et 200 g de poulet">${esc(smartDraft)}</textarea>
         <div id="smart-out" aria-live="polite"></div>
       </div>
       <h3 class="sub">Ajout rapide</h3>
@@ -2144,7 +2144,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '19';
+const APP_VERSION = '20';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
