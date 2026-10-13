@@ -27,6 +27,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.
 - **Cycles de 4 semaines** avec semaine allégée automatique.
 - **Palette Énergie** : rouge-orange, jaune, vert et noir.
+- **Français ou anglais**, au choix dans Profil (interface, exercices, repas, analyse des repas).
 - **Thème clair, sombre ou système**, au choix dans Profil.
 - **Check-in avant séance** (énergie, courbatures, douleur) avec version allégée conseillée si besoin.
 - **Charge de départ conseillée** pour chaque exercice selon ton poids de corps et ton niveau de force (débutant, intermédiaire, confirmé), réglable dans Profil. Contrepoids conseillé pour les machines assistées.

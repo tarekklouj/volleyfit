@@ -19,9 +19,9 @@ const fmtClock = s => `${Math.floor(s / 60)}:${pad(s % 60)}`;
 const fmtVolume = v => v >= 1000 ? `${(v / 1000).toFixed(1).replace('.', ',')} t` : `${Math.round(v)} kg`;
 const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
 
-const DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-const DAYS_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const DAYS = window.I18N?.days || ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const DAYS_SHORT = window.I18N?.daysShort || ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const MONTHS = window.I18N?.months || ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const ZONES = ['Machines', 'Smith machine', 'Poulie', 'Maison', 'Cardio', 'Étirements'];
 const METRICS = {
   weight: { label: 'Poids', unit: 'kg' },
@@ -65,7 +65,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle', level: 'debutant'
+    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
   nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
@@ -1730,6 +1730,11 @@ function renderProfile() {
     </section>
 
     <section class="panel form">
+      <h2>Langue</h2>
+      <div class="seg" role="group" aria-label="Langue">${[['fr', 'Français'], ['en', 'English']].map(([k, l]) => `<button type="button" data-lang="${k}" aria-pressed="${(p.lang || 'fr') === k}" lang="${k}">${l}</button>`).join('')}</div>
+    </section>
+
+    <section class="panel form">
       <h2>Apparence</h2>
       <div class="seg" role="group" aria-label="Thème">${[['system', 'Système'], ['light', 'Clair'], ['dark', 'Sombre']].map(([k, l]) =>
         `<button type="button" data-theme-choice="${k}" aria-pressed="${p.theme === k}">${l}</button>`).join('')}</div>
@@ -1784,6 +1789,10 @@ function renderProfile() {
     $$('[data-variety]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     toast(`Variété : ${VARIETY[p.variety].label.toLowerCase()}.`);
   });
+  $$('[data-lang]', el).forEach(b => b.onclick = () => {
+    if ((p.lang || 'fr') === b.dataset.lang) return;
+    p.lang = b.dataset.lang; save(); location.reload();
+  });
   $$('[data-theme-choice]', el).forEach(b => b.onclick = () => {
     p.theme = b.dataset.themeChoice; save(); applyTheme();
     $$('[data-theme-choice]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -1832,17 +1841,27 @@ function renderProfile() {
    (200 g, 2 œufs, un bol, une tranche, un pot…) ou prend une portion normale. */
 const norm = str => String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .replace(/œ/g, 'oe').replace(/(\d),(\d)/g, '$1.$2').replace(/(\d)([a-z])/g, '$1 $2').replace(/([a-z])(\d)/g, '$1 $2')
-  .replace(/[’'`]/g, ' ').replace(/[,;+\n/]|\bpuis\b|\bavec\b|\bet\b|\bplus\b/g, ' | ').replace(/[^a-z0-9.| ]/g, ' ').replace(/\s+/g, ' ').trim();
+  .replace(/[’'`]/g, ' ').replace(/[,;+\n/]|\bpuis\b|\bavec\b|\bet\b|\bplus\b|\band\b|\bwith\b|\bthen\b/g, ' | ').replace(/[^a-z0-9.| ]/g, ' ').replace(/\s+/g, ' ').trim();
 const sing = w => w.length > 3 ? w.replace(/(s|x)$/, '') : w;
-const NUMW = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, demi: .5, demie: .5, moitie: .5, quart: .25 };
-const SIZEW = { petit: .7, petite: .7, grand: 1.4, grande: 1.4, gros: 1.4, grosse: 1.4, double: 2 };
-const STOP = new Set(['de', 'du', 'des', 'd', 'la', 'le', 'les', 'l', 'au', 'aux', 'a', 'en', 'sur', 'dans', 'mon', 'ma', 'mes', 'un', 'une', 'peu', 'normal', 'normale', 'nature', 'maison', 'sauce', 'avec', 'sans', 'bien', 'cuit', 'cuite', 'cuits', 'cuites', 'frais', 'fraiche', 'j', 'ai', 'mange', 'bu', 'pris', 'il', 'y', 'c', 'est', 'midi', 'soir', 'matin', 'repas', 'dejeuner', 'diner', 'souper', 'gouter', 'collation', 'encas', 'petit', 'hier', 'aujourd', 'hui', 'apres', 'avant', 'match', 'seance', 'entrainement', 'assiette', 'bol', 'verre', 'pot', 'tranche', 'tranches', 'portion', 'part', 'g', 'gr', 'kg', 'ml', 'cl', 'l']);
+const NUMW = { un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, demi: .5, demie: .5, moitie: .5, quart: .25, one: 1, two: 2, three: 3, four: 4, five: 5, half: .5 };
+const SIZEW = { petit: .7, petite: .7, grand: 1.4, grande: 1.4, gros: 1.4, grosse: 1.4, double: 2, small: .7, large: 1.4, big: 1.4 };
+const STOP = new Set(['of', 'the', 'some', 'my', 'ate', 'had', 'i', 'for', 'lunch', 'dinner', 'breakfast', 'snack', 'plain', 'cooked', 'cup', 'cups', 'slice', 'slices', 'can', 'glass', 'bowl', 'piece', 'scoop', 'serving', 'de', 'du', 'des', 'd', 'la', 'le', 'les', 'l', 'au', 'aux', 'a', 'en', 'sur', 'dans', 'mon', 'ma', 'mes', 'un', 'une', 'peu', 'normal', 'normale', 'nature', 'maison', 'sauce', 'avec', 'sans', 'bien', 'cuit', 'cuite', 'cuits', 'cuites', 'frais', 'fraiche', 'j', 'ai', 'mange', 'bu', 'pris', 'il', 'y', 'c', 'est', 'midi', 'soir', 'matin', 'repas', 'dejeuner', 'diner', 'souper', 'gouter', 'collation', 'encas', 'petit', 'hier', 'aujourd', 'hui', 'apres', 'avant', 'match', 'seance', 'entrainement', 'assiette', 'bol', 'verre', 'pot', 'tranche', 'tranches', 'portion', 'part', 'g', 'gr', 'kg', 'ml', 'cl', 'l']);
 function unitGrams(u, f) {
   u = sing(u);
   if (['g', 'gr', 'gramme'].includes(u)) return 1;
   if (u === 'kg' || u === 'kilo') return 1000;
   if (u === 'ml') return 1; if (u === 'cl') return 10; if (u === 'l' || u === 'litre') return 1000;
-  if (u === 'tranche') return f.slice || 30;
+  if (u === 'tranche' || u === 'slice') return f.slice || 30;
+  if (u === 'cup') return 240;
+  if (u === 'oz') return 28;
+  if (u === 'can' || u === 'tin') return f.can || f.portion;
+  if (u === 'glas' || u === 'glass') return 200;
+  if (u === 'bowl') return f.id === 'soupe' ? 300 : 250;
+  if (u === 'plate') return 300;
+  if (u === 'tbsp') return 15;
+  if (u === 'tsp') return 5;
+  if (u === 'handful') return 30;
+  if (u === 'serving') return f.portion;
   if (u === 'pot') return f.pot || f.portion;
   if (u === 'boite' || u === 'canette' || u === 'cannette') return f.can || f.portion;
   if (u === 'bouteille') return f.can || 330;
@@ -2227,7 +2246,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '28';
+const APP_VERSION = '29';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

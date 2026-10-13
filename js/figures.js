@@ -75,7 +75,11 @@ const FIG = (() => {
     if (ph < .95) return 1 - smooth((ph - .62) / .33);
     return 0;
   }
-  function phaseLabel(f, ph) {
+  let TX = { phases: null, labels: null };
+  const PH = t => (TX.phases && TX.phases[t]) || t;
+  const LB = t => (TX.labels && TX.labels[t]) || t;
+  function phaseLabel(f, ph) { return PH(phaseLabelFr(f, ph)); }
+  function phaseLabelFr(f, ph) {
     if (f.crank || f.loop) return 'Mouvement continu';
     if (f.hold) return ph < .2 ? 'Mise en position' : ph < .8 ? 'Tiens la position' : 'Relâche';
     return ph < .12 ? 'Départ' : ph < .45 ? 'Mouvement' : ph < .62 ? 'Arrivée' : ph < .95 ? 'Retour contrôlé' : 'Départ';
@@ -321,7 +325,7 @@ const FIG = (() => {
     const J = solve(poseAt(f, phase));
     let g = trail(f);
     if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost', null, f, null);
-    return g + propsBack(f, J) + body(J, '', activeSet(f), f, tgt) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`).join('');
+    return g + propsBack(f, J) + body(J, '', activeSet(f), f, tgt) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${LB(t)}</text>`).join('');
   }
 
   function wrap(f, inner, label) {
@@ -544,7 +548,7 @@ const FIG = (() => {
 
 
   /* ---------- vues de dessus (la personne regarde vers le bas de l'image) ---------- */
-  const T_ = (x, y, t, a) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${t}</text>`;
+  const T_ = (x, y, t, a) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${LB(t)}</text>`;
   const seg = (a, b, cls) => ln(a, b, 'limb ' + cls);
   const polar = (c, ang, r) => [c[0] + Math.cos(rad(ang)) * r, c[1] + Math.sin(rad(ang)) * r];
   function arcPath(c, r, a0, a1) {
@@ -898,7 +902,7 @@ const FIG = (() => {
       ${list.map(m => muscleShape(m, cls(m[0]))).join('')}
       <text x="50" y="188" text-anchor="middle">${name}</text></g>`;
     return `<svg class="musclemap" viewBox="0 0 210 196" role="img" aria-label="${label}">
-      ${side(MAP.front, 0, 'Face')}${side(MAP.back, 108, 'Dos')}</svg>`;
+      ${side(MAP.front, 0, LB('Face'))}${side(MAP.back, 108, LB('Dos'))}</svg>`;
   }
 
   const view = id => VIEWS[DEFS[id]?.view || 'side'];
@@ -911,5 +915,10 @@ const FIG = (() => {
     return `<svg class="musclemap" viewBox="${vb.join(' ')}" role="img" aria-label="${label}" preserveAspectRatio="xMidYMid meet">
       <g class="mm-base">${SILHOUETTE}</g>${MAP[side].map(m => muscleShape(m, cls(m[0]))).join('')}</svg>`;
   }
-  return { svg, mount, muscles, muscleFigure, view, hint, ids: Object.keys(DEFS) };
+  function setTexts(t) {
+    TX = { phases: t.phases, labels: t.labels };
+    Object.assign(VIEWS, t.views || {});
+    Object.assign(HINTS, t.hints || {});
+  }
+  return { svg, mount, muscles, muscleFigure, view, hint, setTexts, ids: Object.keys(DEFS) };
 })();
