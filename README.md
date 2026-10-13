@@ -22,7 +22,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Mode focus** pendant la séance : un exercice à la fois, grande animation, charge conseillée, cercles répétitions, repos et séries, réglage de la charge en un tap, historique des séries avec l'heure.
 - **Séance libre** : depuis la fiche de n'importe quel exercice, « Faire cet exercice » lance une séance hors programme, ou « Ajouter à la séance en cours ». Les séries validées comptent dans l'historique, les records et les zones ciblées.
 - **Onglet Muscles** : exercices classés par groupe musculaire (pectoraux, dos, épaules, bras, abdos, cuisses, fessiers, mollets) et analyse des zones ciblées sur la dernière séance, la semaine, le mois ou depuis le début.
-- **Animations au style anatomique** : corps plein, muscles ciblés colorés.
+- **Animations façon planche anatomique** : membres galbés, chaque muscle dessiné avec son contour et ses fibres, abdominaux découpés, dégradé de lumière, muscles ciblés en corail.
 - **Bibliothèque d'exercices** avec recherche et filtres par zone de la salle.
 - **Cycles de 4 semaines** avec semaine allégée automatique.
 - **Thème clair, sombre ou système**, au choix dans Profil.

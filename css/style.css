@@ -614,3 +614,27 @@ textarea { min-height: 84px; resize: vertical; }
 .share__bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
 body.has-focus .toast { bottom: auto; top: calc(56px + env(safe-area-inset-top, 0px)); }
 body.has-focus .timer { display: none; }
+
+/* v17 : dessins façon planche anatomique */
+.fig-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+:root { --fig-hi: #E2EAE8; --fig-body: #B5C4C1; --fig-shade: #8EA19D; --fig-far-hi: #B4C2BF; --fig-far-shade: #7F928F;
+  --fig-mus-hi: #CFDAD7; --fig-mus: #A5B6B2; --fig-mus-shade: #869A96; --fig-line: rgba(38, 66, 64, .55);
+  --mus-p-hi: #FFA195; --mus-p-shade: #D1453A; --mus-s-hi: #FFD9D2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fig-hi: #D3DFDC; --fig-body: #A2B4B1; --fig-shade: #7D918E; --fig-far-hi: #8EA29F; --fig-far-shade: #5E7370;
+  --fig-mus-hi: #BCCAC7; --fig-mus: #93A7A3; --fig-mus-shade: #738884; --fig-line: rgba(8, 22, 23, .6); } }
+:root[data-theme="dark"] { --fig-hi: #D3DFDC; --fig-body: #A2B4B1; --fig-shade: #7D918E; --fig-far-hi: #8EA29F; --fig-far-shade: #5E7370;
+  --fig-mus-hi: #BCCAC7; --fig-mus: #93A7A3; --fig-mus-shade: #738884; --fig-line: rgba(8, 22, 23, .6); }
+.fig .sk { fill: url(#vfSkin); stroke: var(--fig-line); stroke-width: .9; stroke-linejoin: round; }
+.fig .far .sk { fill: url(#vfSkinFar); }
+.fig .mu { fill: url(#vfMus); stroke: var(--fig-line); stroke-width: .6; stroke-linejoin: round; }
+.fig .far .mu { opacity: .85; }
+.fig .mu.mus-p { fill: url(#vfP); stroke: rgba(150, 30, 20, .55); }
+.fig .mu.mus-s { fill: url(#vfS); stroke: rgba(170, 70, 60, .4); }
+.fig .fib { fill: none; stroke: rgba(30, 55, 52, .28); stroke-width: .55; stroke-linecap: round; }
+.fig .fib.fib-c { stroke: rgba(130, 25, 15, .35); }
+.fig .ab { stroke-width: .8; }
+.fig .eye { fill: var(--ink); }
+.fig .ghost .sk, .fig .ghost .mu { fill: var(--ink); stroke: none; }
+.fig .ghost { opacity: .14; }
+.thumb .fig .fib { display: none; }
+.thumb .fig .sk, .thumb .fig .mu { stroke-width: 1.3; }

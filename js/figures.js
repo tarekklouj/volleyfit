@@ -133,12 +133,57 @@ const FIG = (() => {
     return (f._trail = s);
   }
 
-  /* Corps plein façon planche anatomique : volumes arrondis, reflet de lumière,
-     muscles ciblés en corail (principaux) et corail clair (secondaires). */
+  /* ---------- Corps façon planche anatomique ----------
+     Chaque membre a un profil galbé (ventre musculaire), un côté avant et un côté arrière.
+     Les muscles sont des « lentilles » posées sur le bon côté, avec fibres et contours. */
+  const lerpP = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const bump = (t, at, s = .3) => Math.exp(-(((t - at) / s) ** 2));
+  const prof = (p, t) => typeof p === 'function' ? p(t) : p[0] + (p[2] - p[0]) * t + (p[1] - (p[0] + (p[2] - p[0]) * p[3])) * bump(t, p[3]);
+  const P2 = arr => arr.map(q => f1(q[0]) + ',' + f1(q[1])).join(' ');
+  function axes(a, b, F) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    let n = [-dy / L, dx / L];
+    if (n[0] * F[0] + n[1] * F[1] < 0) n = [-n[0], -n[1]];
+    return n;
+  }
+  function part(a, b, F, front, back, cls, N = 14) {
+    const n = axes(a, b, F), A = [], B = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, c = lerpP(a, b, t), wf = prof(front, t), wb = prof(back, t);
+      A.push([c[0] + n[0] * wf, c[1] + n[1] * wf]); B.push([c[0] - n[0] * wb, c[1] - n[1] * wb]);
+    }
+    return `<polygon class="${cls}" points="${P2([...A, ...B.reverse()])}"/>`;
+  }
+  // muscle en lentille sur un côté (side +1 avant, -1 arrière), entre t0 et t1
+  function muscle(a, b, F, side, pr, t0, t1, cls, opt = {}) {
+    const n = axes(a, b, F), inset = opt.inset ?? .12, N = 12, out = [], inn = [];
+    for (let i = 0; i <= N; i++) {
+      const t = t0 + (t1 - t0) * i / N, c = lerpP(a, b, t), w = prof(pr, t) * .94, k = Math.sin(Math.PI * i / N) ** .7;
+      const wi = w * inset * (opt.flat ? 1 : .4 + .6 * k), wo = wi + (w - wi) * k;
+      out.push([c[0] + n[0] * side * wo, c[1] + n[1] * side * wo]); inn.push([c[0] + n[0] * side * wi, c[1] + n[1] * side * wi]);
+    }
+    let svg = `<polygon class="mu${cls}" points="${P2([...out, ...inn.slice().reverse()])}"/>`;
+    if (opt.fib !== 0) for (const fr of [.35, .68]) {
+      const line = [];
+      for (let i = 2; i <= N - 2; i++) line.push(lerpP(inn[i], out[i], fr));
+      svg += `<polyline class="fib${cls ? ' fib-c' : ''}" points="${P2(line)}"/>`;
+    }
+    if (opt.abs) for (const tt of [.3, .5, .7]) { const i = Math.round(tt * N); svg += `<line class="fib ab${cls ? ' fib-c' : ''}" x1="${f1(inn[i][0])}" y1="${f1(inn[i][1])}" x2="${f1(out[i][0])}" y2="${f1(out[i][1])}"/>`; }
+    return svg;
+  }
+  const PR = {
+    thighF: [6.6, 8.8, 5, .35], thighB: [6.9, 7.8, 4.7, .45],
+    shinF: [4.6, 4.7, 3.2, .3], shinB: [4.8, 7.6, 3, .27],
+    armF: [4.3, 5.8, 3.6, .52], armB: [4.8, 5.8, 3.7, .38],
+    foreF: [3.9, 4.5, 2.6, .25], foreB: [3.9, 4.7, 2.6, .25],
+    torsoF: t => 7.2 - 1.1 * bump(t, .36, .2) + 2.9 * bump(t, .8, .17),
+    torsoB: t => 8.4 - 1.7 * bump(t, .3, .17) + 1.4 * bump(t, .7, .2) - .8 * bump(t, 1, .1),
+    neck: [4.2, 4.4, 4, .5], foot: [2.4, 2.9, 1.8, .4]
+  };
   const SEG_MUSCLES = {
-    arm: ['biceps', 'triceps'], fore: [], thigh: ['quadriceps', 'ischios', 'adducteurs'], shin: ['mollets'],
-    chest: ['pectoraux', 'dorsaux', 'trapezes'], belly: ['abdos', 'obliques', 'lombaires'],
-    shoulder: ['deltoides', 'deltoides-arr', 'coiffe'], glute: ['fessiers', 'abducteurs']
+    biceps: ['biceps'], triceps: ['triceps'], fore: ['avant-bras'], quads: ['quadriceps', 'adducteurs'], hams: ['ischios'], calf: ['mollets'],
+    pecs: ['pectoraux'], abs: ['abdos', 'obliques'], lats: ['dorsaux'], lumbar: ['lombaires'], traps: ['trapezes', 'coiffe'],
+    delt: ['deltoides', 'deltoides-arr'], glute: ['fessiers', 'abducteurs']
   };
   function musCls(part, tgt) {
     if (!tgt) return '';
@@ -147,40 +192,44 @@ const FIG = (() => {
     if (list.some(m => tgt.s.has(m))) return ' mus-s';
     return '';
   }
-  function capsule(a, b, w, cls) {
-    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-    let nx = -dy / L, ny = dx / L; if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; }
-    const o = w * 0.2, a2 = [a[0] + nx * o, a[1] + ny * o], b2 = [b[0] + nx * o, b[1] + ny * o];
-    return `<line class="seg${cls}" stroke-width="${w}" x1="${f1(a[0])}" y1="${f1(a[1])}" x2="${f1(b[0])}" y2="${f1(b[1])}"/>` +
-      `<line class="seg-hi" stroke-width="${(w * 0.28).toFixed(1)}" x1="${f1(a2[0])}" y1="${f1(a2[1])}" x2="${f1(b2[0])}" y2="${f1(b2[1])}"/>`;
-  }
-  function torso(J, tgt) {
-    const h = J.hip, s0 = J.sh, dx = s0[0] - h[0], dy = s0[1] - h[1], L = Math.hypot(dx, dy) || 1;
-    const nx = -dy / L, ny = dx / L, m = [h[0] + dx * .55, h[1] + dy * .55];
-    const P = (c, w) => [[c[0] + nx * w, c[1] + ny * w], [c[0] - nx * w, c[1] - ny * w]];
-    const [h1, h2] = P(h, 7.5), [m1, m2] = P(m, 9), [s1, s2] = P(s0, 11);
-    const poly = (pts, cls) => `<polygon class="tor${cls}" points="${pts.map(q => f1(q[0]) + ',' + f1(q[1])).join(' ')}"/>`;
-    return poly([h1, m1, m2, h2], musCls('belly', tgt)) + poly([m1, s1, s2, m2], musCls('chest', tgt));
-  }
   function body(J, cls, act, f, tgt) {
-    const useAct = !tgt;
-    const A = (a, b) => useAct && act && act.has(a + '-' + b) ? ' mus-p' : '';
-    const eye = f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 2.2, 'eye') : '';
-    const back = dir(J.t - 90, -5);
-    const glute = add(J.hip, back);
-    const arm = i => capsule(J.sh, J['e' + i], 9, (tgt ? musCls('arm', tgt) : A('sh', 'e' + i))) + capsule(J['e' + i], J['w' + i], 7, A('e' + i, 'w' + i)) + circ(J['w' + i], 3.6, 'hand');
-    const leg = i => capsule(J.hip, J['k' + i], 13, (tgt ? musCls('thigh', tgt) : A('hip', 'k' + i))) + capsule(J['k' + i], J['a' + i], 10, (tgt ? musCls('shin', tgt) : A('k' + i, 'a' + i))) + capsule(J['a' + i], J['t' + i], 5.5, '');
+    const ghost = cls === 'ghost';
+    const F = dir(J.t - 90, 1);
+    const A = (a, b) => !tgt && act && act.has(a + '-' + b) ? ' mus-p' : '';
+    const M = (key, a, b) => tgt ? musCls(key, tgt) : A(a, b);
+    const leg = i => {
+      const h = J.hip, k = J['k' + i], an = J['a' + i], to = J['t' + i];
+      let s = part(h, k, F, PR.thighF, PR.thighB, 'sk') + part(k, an, F, PR.shinF, PR.shinB, 'sk') + part(an, to, F, PR.foot, PR.foot, 'sk');
+      if (!ghost) s += muscle(h, k, F, 1, PR.thighF, .06, .9, M('quads', 'hip', 'k' + i)) + muscle(h, k, F, -1, PR.thighB, .12, .9, M('hams', 'hip', 'k' + i))
+        + muscle(k, an, F, -1, PR.shinB, .04, .62, M('calf', 'k' + i, 'a' + i)) + `<circle class="sk" cx="${f1(k[0])}" cy="${f1(k[1])}" r="4.6"/>`;
+      return s;
+    };
+    const arm = i => {
+      const sh = J.sh, e = J['e' + i], w = J['w' + i];
+      let s = part(sh, e, F, PR.armF, PR.armB, 'sk') + part(e, w, F, PR.foreF, PR.foreB, 'sk');
+      if (!ghost) s += muscle(sh, e, F, 1, PR.armF, .18, .92, M('biceps', 'sh', 'e' + i)) + muscle(sh, e, F, -1, PR.armB, .08, .86, M('triceps', 'sh', 'e' + i))
+        + muscle(e, w, F, 1, PR.foreF, .04, .62, M('fore', 'e' + i, 'w' + i), { fib: 0 });
+      return s + `<ellipse class="sk" cx="${f1(w[0])}" cy="${f1(w[1])}" rx="3.4" ry="4.2" transform="rotate(${f1(-deg(Math.atan2(w[0] - e[0], w[1] - e[1])))} ${f1(w[0])} ${f1(w[1])})"/>`;
+    };
+    // tronc : pectoraux, abdos, dorsaux, lombaires, trapèzes
+    const h = J.hip, sh = J.sh, nb = axes(h, sh, F);
+    let torso = part(h, sh, F, PR.torsoF, PR.torsoB, 'sk');
+    if (!ghost) torso += muscle(h, sh, F, 1, PR.torsoF, .1, .58, musCls('abs', tgt), { abs: 1, inset: .1, fib: 0 })
+      + muscle(h, sh, F, 1, PR.torsoF, .62, .97, musCls('pecs', tgt), { inset: .08 })
+      + muscle(h, sh, F, -1, PR.torsoB, .4, .86, musCls('lats', tgt), { inset: .18 })
+      + muscle(h, sh, F, -1, PR.torsoB, .04, .36, musCls('lumbar', tgt), { inset: .1, fib: 0 })
+      + muscle(h, sh, F, -1, PR.torsoB, .82, 1.06, musCls('traps', tgt), { inset: .05, fib: 0 });
+    // fessier, deltoïde, tête
+    const gl = [h[0] - nb[0] * 4.6 + (h[0] - sh[0]) * .04, h[1] - nb[1] * 4.6 + (h[1] - sh[1]) * .04];
+    const trunkAng = -deg(Math.atan2(sh[0] - h[0], sh[1] - h[1]));
+    const glute = `<ellipse class="${ghost ? 'sk' : 'mu' + musCls('glute', tgt)}" cx="${f1(gl[0])}" cy="${f1(gl[1])}" rx="6.8" ry="8.4" transform="rotate(${f1(trunkAng)} ${f1(gl[0])} ${f1(gl[1])})"/>`;
+    const e0 = J.e0, armAng = -deg(Math.atan2(e0[0] - sh[0], e0[1] - sh[1])), dc = lerpP(sh, e0, .18);
+    const delt = ghost ? '' : `<ellipse class="mu${musCls('delt', tgt)}" cx="${f1(dc[0])}" cy="${f1(dc[1])}" rx="6.4" ry="8" transform="rotate(${f1(armAng)} ${f1(dc[0])} ${f1(dc[1])})"/>`;
+    const head = part(sh, J.head, F, PR.neck, PR.neck, 'sk') + `<ellipse class="sk" cx="${f1(J.head[0])}" cy="${f1(J.head[1])}" rx="8.6" ry="9.6" transform="rotate(${f1(-deg(Math.atan2(J.head[0] - sh[0], J.head[1] - sh[1])) + 180)} ${f1(J.head[0])} ${f1(J.head[1])})"/>`;
+    const eye = !ghost && f && (f.view || 'side') === 'side' ? circ(add(J.head, dir(J.t - 90, 5)), 1.8, 'eye') : '';
     return `<g class="${cls}">
       <g class="far">${leg(1)}${arm(1)}</g>
-      <g class="near">
-        ${circ(glute, 8.5, 'tor' + musCls('glute', tgt))}
-        ${torso(J, tgt)}
-        ${capsule(J.sh, J.head, 6, '')}
-        ${circ(J.head, 9, 'head')}${eye}
-        ${leg(0)}
-        ${circ(J.sh, 6.5, 'tor' + musCls('shoulder', tgt))}
-        ${arm(0)}
-      </g>
+      <g class="near">${glute}${torso}${head}${eye}${leg(0)}${delt}${arm(0)}</g>
     </g>`;
   }
 
