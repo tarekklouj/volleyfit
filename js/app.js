@@ -2004,6 +2004,7 @@ function renderNutrition() {
   const need = needs(training);
   const log = dayLog();
   const eaten = log.entries.reduce((t, e) => ({ p: t.p + e.p, kcal: t.kcal + e.kcal }), { p: 0, kcal: 0 });
+  eaten.p = Math.round(eaten.p); eaten.kcal = Math.round(eaten.kcal);
   const objKey = n.objective === 'auto' ? autoObjective() : n.objective;
   const pct = (a, b) => Math.min(100, b ? Math.round(a / b * 100) : 0);
 
@@ -2041,7 +2042,7 @@ function renderNutrition() {
     <section class="panel">
       <div class="panel__head"><h2>Aujourd'hui</h2><span class="muted small">${fmtDate(new Date().toISOString())}</span></div>
       <div class="track">
-        <p><strong>Protéines</strong> <span>${eaten.p} ${need ? `/ ${need.prot}` : ''} g</span></p>
+        <p><strong>Protéines</strong> <span>${Math.round(eaten.p)} ${need ? `/ ${need.prot}` : ''} g</span></p>
         <div class="meter meter--p"><span style="width:${pct(eaten.p, need?.prot || 150)}%"></span></div>
         <p><strong>Calories</strong> <span>${eaten.kcal.toLocaleString('fr-BE')} ${need ? `/ ${need.kcal.toLocaleString('fr-BE')}` : ''} kcal</span></p>
         <div class="meter meter--k"><span style="width:${pct(eaten.kcal, need?.kcal || 2500)}%"></span></div>
@@ -2246,7 +2247,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '29';
+const APP_VERSION = '30';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
