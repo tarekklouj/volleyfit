@@ -827,6 +827,7 @@ function renderWorkout(el) {
         <div class="wk-head__side"><span class="clock" id="elapsed">0:00</span><button class="icon-btn wk-cancel" id="cancel-top" type="button" aria-label="Annuler la séance">${ICON.close}</button><button class="btn btn--sm" id="finish" type="button">Terminer</button></div>
       </div>
       <div class="progress"><span id="wk-progress"></span></div>
+      <div class="hr-row">${hrChip()}</div>
     </header>
     <button class="focus-cta" type="button" id="focus-open" style="--sess:${s.color}">${ICON.play}<span><strong>Mode focus</strong><br><span class="small">Un exercice à la fois, grande animation, chrono de repos</span></span></button>
     ${isDeload() ? '<p class="callout">Semaine allégée : une série de moins.</p>' : ''}
@@ -845,6 +846,7 @@ function renderWorkout(el) {
   $('#abandon').onclick = cancelSession;
   $('#cancel-top').onclick = cancelSession;
   $('#focus-open').onclick = () => openFocus();
+  $$('[data-hr-open]', el).forEach(b => b.onclick = openHrLog);
   $('#add-ex').onclick = openMachineSearch;
 }
 
@@ -1119,8 +1121,84 @@ function reviewHTML(r) {
   </section>`;
 }
 
+
+/* ================= BPM pendant la séance : relevés multiples + résumé ================= */
+const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>';
+function hrChip() {
+  const a = state.active, log = a?.hr || [], last = log[log.length - 1], hp = hrProfile();
+  const z = last && hp ? zoneOf(last.bpm, hp.max) : null;
+  return `<button class="hr-chip${z?.n ? ' hr-chip--z' + z.n : ''}" type="button" data-hr-open>${HEART}<span>${last ? `${last.bpm} bpm${z?.n ? ` · Z${z.n}` : ''}` : TT('Ajouter mon BPM', 'Add my BPM')}</span>${log.length ? `<em>${log.length}</em>` : ''}</button>`;
+}
+function refreshHrChips() { $$('[data-hr-open]').forEach(b => { b.outerHTML = hrChip(); }); $$('[data-hr-open]').forEach(b => { if (!b.closest('#focus')) b.onclick = openHrLog; }); }
+function openHrLog() {
+  const a = state.active; if (!a) return;
+  a.hr = a.hr || [];
+  const hp = hrProfile();
+  const body = openSheet(`
+    <h2 class="sheet__title">${TT('Mes BPM', 'My BPM')}</h2>
+    <p class="muted">${TT('Regarde ta montre et note ton BPM, autant de fois que tu veux : pendant une série, juste après, pendant le repos.', 'Check your watch and log your BPM as often as you like: during a set, right after, during rest.')}</p>
+    <div class="hr-add">
+      <button type="button" data-hrd="-5" aria-label="${TT('Moins 5', 'Minus 5')}">−5</button>
+      <input id="hr-in" inputmode="numeric" aria-label="BPM" placeholder="${a.hr.length ? a.hr[a.hr.length - 1].bpm : 120}" value="">
+      <button type="button" data-hrd="5" aria-label="${TT('Plus 5', 'Plus 5')}">+5</button>
+    </div>
+    <button class="btn btn--block" type="button" id="hr-save">${HEART} ${TT('Ajouter ce relevé', 'Add this reading')}</button>
+    <div id="hr-list">${hrLogHTML(a.hr, a.start, true)}</div>
+  `, { label: TT('Mes BPM', 'My BPM'), onClose: () => refreshHrChips() });
+  const inp = $('#hr-in', body);
+  $$('[data-hrd]', body).forEach(b => b.onclick = () => { inp.value = String(Math.max(40, (num(inp.value) || num(inp.placeholder) || 120) + +b.dataset.hrd)); });
+  const add = () => {
+    const v = validBpm(inp.value || inp.placeholder);
+    if (!v) { toast(TT('Entre un BPM entre 35 et 240.', 'Enter a BPM between 35 and 240.')); return; }
+    a.hr.push({ t: Date.now(), bpm: v }); save();
+    inp.value = ''; inp.placeholder = v;
+    const z = hp ? zoneOf(v, hp.max) : null;
+    toast(`${v} bpm${z?.n ? ` : ${TT('zone', 'zone')} ${z.n}` : ''}`);
+    $('#hr-list', body).innerHTML = hrLogHTML(a.hr, a.start, true); bindDel();
+  };
+  $('#hr-save', body).onclick = add;
+  inp.onkeydown = e => { if (e.key === 'Enter') add(); };
+  const bindDel = () => $$('[data-hrdel]', body).forEach(b => b.onclick = () => { a.hr.splice(+b.dataset.hrdel, 1); save(); $('#hr-list', body).innerHTML = hrLogHTML(a.hr, a.start, true); bindDel(); });
+  bindDel();
+  setTimeout(() => inp.focus(), 150);
+}
+function hrStats(log) {
+  if (!log?.length) return null;
+  const v = log.map(x => x.bpm);
+  return { n: v.length, min: Math.min(...v), max: Math.max(...v), avg: Math.round(v.reduce((a, b) => a + b, 0) / v.length) };
+}
+function hrLogHTML(log, start, editable = false) {
+  if (!log?.length) return `<p class="empty">${TT('Aucun relevé pour l\'instant.', 'No readings yet.')}</p>`;
+  const hp = hrProfile(), st = hrStats(log);
+  // courbe des relevés dans le temps, bandes de zones en fond
+  const W = 340, H = 150, P = { l: 34, r: 10, t: 10, b: 22 };
+  const t0 = start || log[0].t, t1 = Math.max(log[log.length - 1].t, t0 + 60000);
+  const y0 = Math.min(st.min - 10, hp ? Math.round(hp.max * .5) : st.min - 10), y1 = Math.max(st.max + 10, hp ? Math.round(hp.max * .95) : st.max + 10);
+  const X = t => P.l + (t - t0) / (t1 - t0) * (W - P.l - P.r), Y = b => P.t + (1 - (b - y0) / (y1 - y0)) * (H - P.t - P.b);
+  const bands = hp ? HR_ZONES.map(z => { const a = Math.max(y0, hp.max * z.from / 100), b = Math.min(y1, hp.max * z.to / 100); return b > a ? `<rect class="zb zb--${z.n}" x="${P.l}" width="${W - P.l - P.r}" y="${Y(b)}" height="${Y(a) - Y(b)}"/>` : ''; }).join('') : '';
+  const path = log.map((x, i) => `${i ? 'L' : 'M'}${X(x.t).toFixed(1)},${Y(x.bpm).toFixed(1)}`).join('');
+  const chart = `<svg class="chart hr-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${TT('Courbe des BPM', 'BPM curve')}">${bands}
+    <path class="curve" d="${path}"/>${log.map(x => `<circle class="dot" cx="${X(x.t)}" cy="${Y(x.bpm)}" r="3.5"/>`).join('')}
+    ${[y0, Math.round((y0 + y1) / 2), y1].map(v => `<text x="${P.l - 5}" y="${Y(v) + 3}" text-anchor="end">${Math.round(v)}</text>`).join('')}
+    <text x="${P.l}" y="${H - 6}">0 min</text><text x="${W - P.r}" y="${H - 6}" text-anchor="end">${Math.round((t1 - t0) / 60000)} min</text></svg>`;
+  const zones = hp ? HR_ZONES.map(z => ({ z, c: log.filter(x => zoneOf(x.bpm, hp.max).n === z.n).length })).filter(x => x.c) : [];
+  return `<div class="hr-sum">
+      <div class="stats3 stats3--flat hr-stats">
+        <div class="stat"><p class="stat__value">${st.min}</p><p class="stat__label">min</p></div>
+        <div class="stat"><p class="stat__value">${st.avg}</p><p class="stat__label">${TT('moyenne', 'average')}</p></div>
+        <div class="stat"><p class="stat__value">${st.max}</p><p class="stat__label">max</p></div>
+      </div>
+      ${log.length > 1 ? chart : ''}
+      ${zones.length ? `<div class="hr-zones">${zones.map(({ z, c }) => `<div class="hr-zrow"><span class="zone__n zone--${z.n}" style="background:var(--zc)">Z${z.n}</span><span>${TT(z.label, ({ 1: 'Recovery', 2: 'Endurance', 3: 'Aerobic', 4: 'Threshold', 5: 'Maximum' })[z.n])}</span><span class="share__bar"><span style="width:${c / log.length * 100}%"></span></span><strong>${Math.round(c / log.length * 100)} %</strong></div>`).join('')}</div>` : ''}
+      <p class="muted small">${TT(`${st.n} relevé${st.n > 1 ? 's' : ''}`, `${st.n} reading(s)`)}${hp ? TT(`, FC max théorique ${hp.max} bpm.`, `, theoretical max HR ${hp.max} bpm.`) : '.'}</p>
+      ${editable ? `<div class="list list--plain hr-items">${log.map((x, i) => ({ x, i })).reverse().map(({ x, i }) => { const z = hp ? zoneOf(x.bpm, hp.max) : null; return `<div class="food-row"><span><strong>${x.bpm} bpm</strong>${z?.n ? ` <span class="pill pill--sm">Z${z.n}</span>` : ''}<br><span class="muted small">${fmtTime(new Date(x.t).toISOString())}, ${TT('à', 'at')} ${Math.max(0, Math.round((x.t - (start || x.t)) / 60000))} min</span></span><button class="icon-btn" type="button" data-hrdel="${i}" aria-label="${TT('Retirer', 'Remove')}">${ICON.trash}</button></div>`; }).join('')}</div>` : ''}
+    </div>`;
+}
+
 function openFinish() {
   const a = state.active, s = sessionOf(a.code);
+  const hst = hrStats(a.hr);
+  if (hst) { if (!a.hrAvg) a.hrAvg = hst.avg; if (!a.hrMax) a.hrMax = hst.max; }
   const st = sessionStats(a), prs = detectPRs(a.items);
   const body = openSheet(`
     <h2 class="sheet__title">${st.done ? 'Bien joué !' : 'Terminer la séance ?'}</h2>
@@ -1132,6 +1210,7 @@ function openFinish() {
     ${prs.length ? `<div class="prs"><h3 class="sub">${ICON.trophy} ${prs.length > 1 ? 'Nouveaux records' : 'Nouveau record'}</h3>${prs.map(p => `<p><strong>${esc(EX[p.ex].name)}</strong> : ${p.text}</p>`).join('')}</div>` : ''}
     <div id="fin-review">${reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes }))}</div>
     <h3 class="sub">Fréquence cardiaque <span class="muted small">(Apple Watch, facultatif)</span></h3>
+    ${a.hr?.length ? hrLogHTML(a.hr, a.start) : ''}
     ${hrFieldsHTML(a.hrAvg, a.hrMax)}
     <div id="hr-fb">${hrFeedback(a.code, a.hrAvg, a.hrMax)}</div>
     <h3 class="sub">Ressenti de l'effort</h3>
@@ -1157,7 +1236,7 @@ function openFinish() {
     state.history.unshift({
       id: Date.now(), code: a.code, name: a.free ? `Séance libre : ${[...new Set(a.items.map(it => EX[it.ex]?.name).filter(Boolean))].slice(0, 2).join(', ')}${a.items.length > 2 ? '…' : ''}` : s.name, date: new Date(a.start).toISOString(),
       minutes: st.minutes, volume: st.volume, setsDone: st.done, setsTotal: st.total,
-      rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
+      rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, hrLog: a.hr?.length ? a.hr : null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
       items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
     });
     state.active = null;
@@ -1294,6 +1373,9 @@ function drawFocus() {
       <p><strong>${focusIdx + 1}/${n}</strong> ${esc(grp)}</p>
       <span class="clock" id="f-elapsed">0:00</span>
     </header>
+    <div class="focus__hr">${hrChip()}</div>
+    <header hidden>
+    </header>
     <div class="focus__body">
       <div class="focus__stage">
         <div id="f-anim" class="focus__fig"></div>
@@ -1342,6 +1424,7 @@ function drawFocus() {
   ov.onclick = ev => {
     const b = ev.target.closest('button'); if (!b) return;
     const d = b.dataset;
+    if (b.hasAttribute('data-hr-open')) return openHrLog();
     if ('fclose' in d) return closeFocus();
     if ('finfo' in d) return openExercise(it.ex);
     if ('fswap' in d) return openSwap(focusIdx);
@@ -1803,6 +1886,7 @@ function openSession(id) {
     ${h.rpe ? `<p>Ressenti : <strong>${esc(h.rpe)}/10</strong></p>` : ''}
     ${h.notes ? `<p class="callout">${esc(h.notes)}</p>` : ''}
     <h3 class="sub">Fréquence cardiaque</h3>
+    ${h.hrLog?.length ? hrLogHTML(h.hrLog, +new Date(h.date)) : ''}
     ${hrFieldsHTML(h.hrAvg, h.hrMax)}
     <div id="hr-fb">${h.hrAvg || h.hrMax ? hrFeedback(h.code, h.hrAvg, h.hrMax) : '<p class="muted small">Recopie ici les BPM affichés par ta montre pour cette séance.</p>'}</div>
     <button class="btn btn--danger btn--block" type="button" id="del-session">Supprimer cette séance</button>`, { label: h.name, onClose: () => { if (view === 'progress') renderProgress(); } });
@@ -2406,7 +2490,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '32';
+const APP_VERSION = '33';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

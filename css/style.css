@@ -780,3 +780,25 @@ body.has-focus .timer { display: none; }
 .suggest .btn { margin-left: auto; }
 .suggest--same { background: var(--surface-2); }
 .pill--btn { border: 0; cursor: pointer; background: color-mix(in srgb, var(--court) 18%, transparent); color: var(--court); font-weight: 600; padding: 4px 10px; margin-left: 6px; }
+
+/* v33 : BPM pendant la séance */
+.hr-row { margin-top: 8px; }
+.hr-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 0; cursor: pointer; font-weight: 600; font-size: .9rem;
+  background: color-mix(in srgb, #E5484D 16%, var(--surface)); color: var(--ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #E5484D 55%, transparent); }
+.hr-chip svg { width: 18px; height: 18px; fill: #E5484D; }
+.hr-chip em { font-style: normal; font-size: .75rem; background: var(--surface-2); border-radius: 999px; padding: 1px 7px; color: var(--muted); }
+.hr-chip--z1 { --zc: #7A9592; } .hr-chip--z2 { --zc: #1F6FA8; } .hr-chip--z3 { --zc: #0F7C78; } .hr-chip--z4 { --zc: #E08A2E; } .hr-chip--z5 { --zc: #C9402F; }
+.hr-chip[class*="--z"] { box-shadow: inset 0 0 0 2px var(--zc); }
+.focus__hr { max-width: 560px; width: 100%; margin: 0 auto; padding: 0 16px 6px; }
+.hr-add { display: grid; grid-template-columns: 64px 1fr 64px; gap: 8px; align-items: center; }
+.hr-add button { height: 56px; border: 0; border-radius: var(--radius-sm); background: var(--surface-2); font: 800 1.2rem var(--display); cursor: pointer; }
+.hr-add input { min-height: 56px; text-align: center; font: 800 2rem var(--display); }
+.hr-sum { display: grid; gap: 10px; }
+.hr-chart .zb { opacity: .16; }
+.zb--1 { fill: #7A9592; } .zb--2 { fill: #1F6FA8; } .zb--3 { fill: #0F7C78; } .zb--4 { fill: #E08A2E; } .zb--5 { fill: #C9402F; }
+.hr-chart .curve { stroke: #E5484D; } .hr-chart .dot { stroke: #E5484D; }
+.hr-zones { display: grid; gap: 6px; }
+.hr-zrow { display: grid; grid-template-columns: 36px 90px 1fr 44px; gap: 8px; align-items: center; font-size: .9rem; }
+.hr-zrow .zone__n { height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; font: 800 .9rem var(--display); }
+.hr-zrow .zone--1 { --zc: #7A9592; } .hr-zrow .zone--2 { --zc: #1F6FA8; } .hr-zrow .zone--3 { --zc: #0F7C78; } .hr-zrow .zone--4 { --zc: #E08A2E; } .hr-zrow .zone--5 { --zc: #C9402F; }
+.hr-zrow .share__bar span { background: #E5484D; }
