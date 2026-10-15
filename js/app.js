@@ -868,8 +868,18 @@ function startSession(code) {
 function cancelSession() {
   const a = state.active;
   if (!a) return;
-  const anyDone = a.items.some(it => it.sets.some(x => x.done));
-  if (anyDone && !confirm('Annuler la séance ? Les séries déjà validées ne seront pas enregistrées.')) return;
+  const done = a.items.reduce((t, it) => t + it.sets.filter(x => x.done).length, 0);
+  if (done) {
+    const body = openSheet(`
+      <h2 class="sheet__title">Tu as déjà validé ${plural(done, 'série')}</h2>
+      <p class="muted">Pour ne pas perdre ton travail, enregistre la séance telle qu'elle est. Elle comptera dans l'historique, les records et le coach.</p>
+      <button class="btn btn--block" type="button" id="cs-save">Enregistrer la séance</button>
+      <button class="btn btn--ghost btn--block" type="button" data-close>Continuer la séance</button>
+      <button class="btn btn--danger btn--block" type="button" id="cs-drop">Supprimer sans enregistrer</button>`, { label: 'Annuler la séance' });
+    $('#cs-save', body).onclick = () => { const n = saveActiveSession(); closeSheet(); toast(n ? `Séance enregistrée, ${plural(n, 'record')} battu${n > 1 ? 's' : ''} !` : 'Séance enregistrée.'); render(); window.scrollTo(0, 0); };
+    $('#cs-drop', body).onclick = () => { if (!confirm('Supprimer cette séance et ses séries validées ?')) return; state.active = null; stopTimer(); save(); closeSheet(); render(); window.scrollTo(0, 0); toast('Séance annulée.'); };
+    return;
+  }
   state.active = null; stopTimer(); save(); render(); window.scrollTo(0, 0);
   toast('Séance annulée.');
 }
@@ -1094,6 +1104,9 @@ function toggleSet(i, k) {
   if (row) { row.classList.toggle('is-done', st.done); $('.check', row).setAttribute('aria-pressed', String(st.done)); }
   $('#wx-' + i)?.classList.toggle('is-complete', it.sets.every(x => x.done));
   updateProgress();
+  if (st.done && a.items.every(x => x.sets.every(y => y.done))) {
+    setTimeout(() => toast('Toutes les séries sont faites : enregistre ta séance !', { action: 'Terminer', onAction: openFinish, duration: 9000 }), 400);
+  }
   if (st.done && it.rest) {
     const lastSet = it.sets.every(x => x.done);
     const next = a.items.slice(i + 1).find(x => !x.sets.every(s => s.done));
@@ -1338,17 +1351,46 @@ function openFinish() {
   $('#fin-notes').oninput = e => { a.notes = e.target.value; save(); };
   $('#save-session').onclick = () => {
     if (st.done === 0 && !confirm('Aucune série validée. Enregistrer quand même ?')) return;
-    state.history.unshift({
-      id: Date.now(), code: a.code, name: a.free ? `Séance libre : ${[...new Set(a.items.map(it => EX[it.ex]?.name).filter(Boolean))].slice(0, 2).join(', ')}${a.items.length > 2 ? '…' : ''}` : s.name, date: new Date(a.start).toISOString(),
-      minutes: st.minutes, volume: st.volume, setsDone: st.done, setsTotal: st.total,
-      rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, hrLog: a.hr?.length ? a.hr : null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
-      items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
-    });
-    state.active = null;
-    stopTimer(); save(); closeSheet();
-    toast(prs.length ? `Séance enregistrée, ${plural(prs.length, 'record')} battu${prs.length > 1 ? 's' : ''} !` : 'Séance enregistrée.');
+    const n = saveActiveSession();
+    closeSheet();
+    toast(n ? `Séance enregistrée, ${plural(n, 'record')} battu${n > 1 ? 's' : ''} !` : 'Séance enregistrée.');
     render(); window.scrollTo(0, 0);
   };
+}
+
+/* Enregistre la séance en cours dans l'historique (bouton, annulation ou automatique). */
+function lastActivity(a) {
+  let t = a.start;
+  for (const it of a.items || []) for (const x of it.sets || []) if (x.t && x.t > t) t = x.t;
+  for (const r of a.hr || []) if (r.t > t) t = r.t;
+  return t;
+}
+function saveActiveSession({ auto = false } = {}) {
+  const a = state.active; if (!a) return 0;
+  const s = sessionOf(a.code);
+  const total = a.items.reduce((t, it) => t + it.sets.length, 0), done = a.items.reduce((t, it) => t + it.sets.filter(x => x.done).length, 0);
+  const end = auto ? lastActivity(a) : Date.now();
+  const minutes = Math.max(1, Math.round((end - a.start) / 60000));
+  const prs = detectPRs(a.items);
+  const hst = hrStats(a.hr);
+  if (hst) { if (!a.hrAvg) a.hrAvg = hst.avg; if (!a.hrMax) a.hrMax = hst.max; }
+  state.history.unshift({
+    id: Date.now(), code: a.code, name: a.free ? `Séance libre : ${[...new Set(a.items.map(it => EX[it.ex]?.name).filter(Boolean))].slice(0, 2).join(', ')}${a.items.length > 2 ? '…' : ''}` : s.name, date: new Date(a.start).toISOString(),
+    minutes, volume: sessionVolume(a.items), setsDone: done, setsTotal: total, auto: auto || undefined,
+    rpe: a.rpe, notes: a.notes, hrAvg: a.hrAvg || null, hrMax: a.hrMax || null, hrLog: a.hr?.length ? a.hr : null, prs: prs.map(p => p.ex), light: !!a.light, checkin: a.checkin || null,
+    items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
+  });
+  state.active = null;
+  stopTimer(); save();
+  return prs.length;
+}
+/* Séance oubliée : enregistrée automatiquement 3 h après la dernière série validée. */
+function autoSaveForgotten() {
+  const a = state.active; if (!a || !a.items) return;
+  if (Date.now() - lastActivity(a) < 3 * 36e5) return;
+  const anyDone = a.items.some(it => it.sets.some(x => x.done));
+  if (anyDone) { saveActiveSession({ auto: true }); setTimeout(() => toast('Ta dernière séance n\'avait pas été terminée : elle a été enregistrée automatiquement.', { duration: 6000 }), 600); }
+  else { state.active = null; save(); }
 }
 
 /* ================= Chronos ================= */
@@ -1972,7 +2014,7 @@ function openSession(id) {
   if (!h) return;
   const body = openSheet(`
     <h2 class="sheet__title">${esc(h.name)}</h2>
-    <p class="muted">${fmtDateTime(h.date)}</p>
+    <p class="muted">${fmtDateTime(h.date)}${h.auto ? ', enregistrée automatiquement' : ''}</p>
     <div class="stats3 stats3--flat">
       <div class="stat"><p class="stat__value">${h.minutes}</p><p class="stat__label">minutes</p></div>
       <div class="stat"><p class="stat__value">${h.setsDone}/${h.setsTotal}</p><p class="stat__label">séries</p></div>
@@ -2595,7 +2637,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '34';
+const APP_VERSION = '35';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
@@ -2607,5 +2649,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.
     .catch(() => {});
 }
 
+autoSaveForgotten();
 render();
 if (identityMissing().length && !state.active) setTimeout(openIdentitySheet, 400);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && state.active) { const was = state.active; autoSaveForgotten(); if (!state.active && was) render(); } });
