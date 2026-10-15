@@ -876,9 +876,9 @@ function suggestFor(it) {
   const kg = assisted ? Math.min(...prev.map(x => num(x.kg))) : Math.max(...prev.map(x => num(x.kg)));
   const top = it.kind === 'hold' ? it.hold : Math.max(...(String(it.reps).match(/\d+/g) || [10]).map(Number));
   const hit = prev.every(x => (it.kind === 'hold' ? num(x.sec) : num(x.reps)) >= top);
-  if (!hit || state.active?.light) return { kg, up: false };
-  if (assisted) return kg > 5 ? { kg: kg - 5, up: true, from: kg, assisted } : { kg, up: false };
-  return { kg: kg + (kg < 30 ? 2.5 : 5), up: true, from: kg };
+  if (!hit || state.active?.light) return { kg, up: false, same: true };
+  if (assisted) return kg > 5 ? { kg, next: kg - 5, up: true, from: kg, assisted } : { kg, up: false, same: true };
+  return { kg, next: kg + (kg < 30 ? 2.5 : 5), up: true, from: kg };
 }
 
 function itemHTML(it, i) {
@@ -911,7 +911,7 @@ function itemHTML(it, i) {
       ${isW ? `<p class="small muted">${esc(s.warmNote)}</p>` : it.cooldown ? '<p class="small muted">Allure tranquille pour faire redescendre le cœur.</p>' : ''}`;
   } else {
     const prev = lastSetsFor(it.ex), loaded = !!e.loaded, f = it.kind === 'hold' ? 'sec' : 'reps', sug = suggestFor(it);
-    body = `${sug?.up ? `<p class="suggest">${ICON.up}<span>${sug.assisted ? `Baisse le contrepoids à <strong>${fmtKg(sug.kg)} kg</strong>` : `Monte à <strong>${fmtKg(sug.kg)} kg</strong>`} : tu as réussi toutes tes répétitions à ${fmtKg(sug.from)} kg la dernière fois.</span></p>` : ''}${sug?.start ? `<p class="suggest suggest--start">${ICON.up}<span>${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} de départ conseillée : <strong>${fmtKg(sug.kg)} kg</strong> (${LEVELS[state.profile.level].label.toLowerCase()}, ${fmtKg(bodyWeight())} kg). Si tu fais facilement plus de répétitions, ${isAssisted(it.ex) ? 'baisse le contrepoids' : 'monte'} à la série suivante ; si tu n'y arrives pas, ${isAssisted(it.ex) ? 'monte-le' : 'baisse'}.</span></p>` : ''}<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
+    body = `${sug?.up ? `<div class="suggest"><span>Même charge que la dernière fois : <strong>${fmtKg(sug.kg)} kg</strong>. Tu avais réussi toutes tes répétitions : si c'était facile, ${sug.assisted ? 'baisse le contrepoids' : 'monte'} d'un cran.</span><button class="btn btn--ghost btn--sm" type="button" data-bump="${i}">${sug.assisted ? 'Contrepoids' : 'Monter à'} ${fmtKg(sug.next)} kg</button></div>` : sug?.same ? `<p class="suggest suggest--same"><span>Même charge que la dernière fois : <strong>${fmtKg(sug.kg)} kg</strong>.</span></p>` : ''}${sug?.start ? `<p class="suggest suggest--start">${ICON.up}<span>${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} de départ conseillée : <strong>${fmtKg(sug.kg)} kg</strong> (${LEVELS[state.profile.level].label.toLowerCase()}, ${fmtKg(bodyWeight())} kg). Si tu fais facilement plus de répétitions, ${isAssisted(it.ex) ? 'baisse le contrepoids' : 'monte'} à la série suivante ; si tu n'y arrives pas, ${isAssisted(it.ex) ? 'monte-le' : 'baisse'}.</span></p>` : ''}<div class="sets ${loaded ? '' : 'sets--nokg'}" role="table" aria-label="Séries">
       <div class="sets__row sets__row--head" role="row"><span role="columnheader">Série</span><span role="columnheader">Précédent</span>${loaded ? '<span role="columnheader">kg</span>' : ''}<span role="columnheader">${f === 'sec' ? 'Sec' : 'Rép.'}</span><span></span></div>
       ${it.sets.map((st, k) => {
         const pv = prev[k] || prev[prev.length - 1];
@@ -943,6 +943,11 @@ function onWorkoutClick(e) {
   const d = t.dataset;
   if (d.info) return openExercise(d.info);
   if (d.check !== undefined) return toggleSet(+d.check, +d.k);
+  if (d.bump !== undefined) {
+    const it = a.items[+d.bump], sg = suggestFor(it);
+    if (sg?.next != null) { it.sets.forEach(x => { if (!x.done) x.kg = String(sg.next); }); save(); rerenderItem(+d.bump); toast(`Charge réglée à ${fmtKg(sg.next)} kg.`); }
+    return;
+  }
   if (d.addset !== undefined) {
     const it = a.items[+d.addset];
     it.sets.push({ kg: '', reps: '', sec: '', done: false });
@@ -1043,6 +1048,77 @@ function detectPRs(items) {
   return prs;
 }
 
+
+/* ================= Bilan de séance : résumé, muscles, avis, prochaine fois ================= */
+const TT = (fr, en) => window.LANG === 'en' ? en : fr;
+const CAT = {
+  push: ['pectoraux', 'deltoides', 'triceps'], pull: ['dorsaux', 'deltoides-arr', 'biceps', 'trapezes'],
+  legs: ['quadriceps', 'ischios', 'fessiers', 'mollets', 'adducteurs', 'abducteurs'], core: ['abdos', 'obliques', 'lombaires'], cuff: ['coiffe']
+};
+const CAT_EX = { push: ['chest-press', 'shoulder-press'], pull: ['tirage-vertical', 'rowing-assis'], legs: ['presse', 'leg-curl'], core: ['crunch-machine', 'extension-lombaire'], cuff: ['rot-ext', 'face-pull'] };
+function sessionReview({ items, code, rpe, minutes, start }) {
+  const strength = items.filter(it => (it.kind === 'reps' || it.kind === 'hold') && EX[it.ex]);
+  const done = strength.map(it => ({ it, n: (it.sets || []).filter(x => x.done).length, total: (it.sets || []).length })).filter(x => x.total);
+  const setsDone = done.reduce((t, x) => t + x.n, 0), setsTotal = done.reduce((t, x) => t + x.total, 0);
+  const warm = items.some(it => (it.kind === 'warmup' || it.kind === 'time') && it.sets?.[0]?.done);
+  const mus = {};
+  for (const { it, n } of done) {
+    (EX[it.ex].target?.p || []).forEach(m => mus[m] = (mus[m] || 0) + n);
+    (EX[it.ex].target?.s || []).forEach(m => mus[m] = (mus[m] || 0) + n / 2);
+  }
+  const cat = Object.fromEntries(Object.entries(CAT).map(([k, list]) => [k, list.reduce((t, m) => t + (mus[m] || 0), 0)]));
+  const good = [], more = [], next = [];
+  // ce qui est bien
+  if (setsDone >= 12) good.push(TT(`Bon volume : ${setsDone} séries validées.`, `Good volume: ${setsDone} sets confirmed.`));
+  if (setsTotal && setsDone === setsTotal) good.push(TT('Toutes les séries prévues ont été faites.', 'Every planned set was done.'));
+  if (cat.cuff > 0) good.push(TT('Prévention des épaules faite : parfait pour le volley.', 'Shoulder prevention done: perfect for volleyball.'));
+  if (cat.push && cat.pull && Math.max(cat.push, cat.pull) <= 1.5 * Math.min(cat.push, cat.pull)) good.push(TT('Poussée et tirage bien équilibrés.', 'Push and pull well balanced.'));
+  // ce qu'il faut faire en plus
+  if (setsDone < 6) more.push(TT(`Séance courte (${setsDone} séries) : vise au moins 10 à 12 séries pour progresser.`, `Short session (${setsDone} sets): aim for at least 10 to 12 sets to progress.`));
+  if (setsTotal && setsDone < setsTotal) more.push(TT(`${setsTotal - setsDone} série${setsTotal - setsDone > 1 ? 's' : ''} non validée${setsTotal - setsDone > 1 ? 's' : ''} : finis-les ou retire-les si tu manquais de temps.`, `${setsTotal - setsDone} set(s) not confirmed: finish them or remove them if you were short on time.`));
+  if (code === 'L' && !warm) more.push(TT('Pense à 5 à 10 minutes d\'échauffement cardio avant la prochaine séance libre.', 'Remember 5 to 10 minutes of cardio warm-up before your next free session.'));
+  if (cat.push > 1.5 * (cat.pull || 0) && cat.push >= 3) more.push(TT(`Beaucoup de poussée, peu de tirage : ajoute ${EX[CAT_EX.pull[0]].name.toLowerCase()} ou ${EX[CAT_EX.pull[1]].name.toLowerCase()} pour protéger tes épaules.`, `Lots of pushing, little pulling: add ${EX[CAT_EX.pull[0]].name.toLowerCase()} or ${EX[CAT_EX.pull[1]].name.toLowerCase()} to protect your shoulders.`));
+  if (cat.pull > 1.5 * (cat.push || 0) && cat.pull >= 3) more.push(TT(`Beaucoup de tirage, peu de poussée : ajoute ${EX[CAT_EX.push[0]].name.toLowerCase()} pour équilibrer.`, `Lots of pulling, little pushing: add ${EX[CAT_EX.push[0]].name.toLowerCase()} to balance.`));
+  if ((cat.push || cat.pull) && !cat.cuff) more.push(TT(`Haut du corps sans prévention : ajoute 2 séries de ${EX['rot-ext'].name.toLowerCase()} à la fin.`, `Upper body without prevention: add 2 sets of ${EX['rot-ext'].name.toLowerCase()} at the end.`));
+  if (num(rpe) >= 9) more.push(TT('Effort très dur : garde au moins 48 heures avant de retravailler les mêmes muscles.', 'Very hard effort: allow at least 48 hours before working the same muscles again.'));
+  if (num(rpe) && num(rpe) <= 4 && setsDone) more.push(TT('Effort facile : tu peux monter les charges ou ajouter une série.', 'Easy effort: you can raise the loads or add a set.'));
+  // la prochaine fois
+  const since = Date.now() - 7 * 864e5, wk = {};
+  for (const h of state.history) if (+new Date(h.date) >= since) for (const it of h.items || []) { const e = EX[it.ex]; if (!e) continue; const n = (it.sets || []).filter(x => x.done).length; (e.target?.p || []).forEach(m => wk[m] = (wk[m] || 0) + n); }
+  for (const { it, n } of done) (EX[it.ex].target?.p || []).forEach(m => wk[m] = (wk[m] || 0) + n);
+  const missing = Object.keys(CAT).filter(k => k !== 'cuff' && !CAT[k].some(m => wk[m]));
+  if (missing.length) next.push(TT(`Cette semaine, il manque encore : ${missing.map(k => ({ push: 'pectoraux et épaules', pull: 'dos', legs: 'jambes', core: 'abdos et gainage' })[k]).join(', ')}. Par exemple : ${missing.map(k => EX[CAT_EX[k][0]].name.toLowerCase()).join(', ')}.`,
+    `This week you're still missing: ${missing.map(k => ({ push: 'chest and shoulders', pull: 'back', legs: 'legs', core: 'abs and core' })[k]).join(', ')}. For example: ${missing.map(k => EX[CAT_EX[k][0]].name.toLowerCase()).join(', ')}.`));
+  const loads = done.filter(x => EX[x.it.ex].loaded && x.n).map(({ it }) => {
+    const ds = it.sets.filter(x => x.done && num(x.kg));
+    if (!ds.length) return null;
+    const kg = isAssisted(it.ex) ? Math.min(...ds.map(x => num(x.kg))) : Math.max(...ds.map(x => num(x.kg)));
+    const top = it.kind === 'hold' ? it.hold : Math.max(...(String(it.reps || '10').match(/\d+/g) || [10]).map(Number));
+    const hit = ds.length === it.sets.length && ds.every(x => (it.kind === 'hold' ? num(x.sec) : num(x.reps)) >= top);
+    return { ex: it.ex, kg, hit };
+  }).filter(Boolean);
+  if (loads.some(l => l.hit)) next.push(TT('Exercices réussis à 100 % : l\'app te proposera de monter d\'un cran, tu décideras sur place.', 'Exercises done at 100 %: the app will offer to go up one step, you decide on the spot.'));
+  if (!missing.length && !more.length) next.push(TT('Continue comme ça : même structure, mêmes charges, et monte quand tout passe facilement.', 'Keep it up: same structure, same loads, and go up when everything feels easy.'));
+  return { minutes, setsDone, setsTotal, exercises: done.filter(x => x.n).length, mus, good, more, next, loads };
+}
+function reviewHTML(r) {
+  const ranked = Object.entries(r.mus).sort((a, b) => b[1] - a[1]);
+  const max = ranked[0]?.[1] || 1;
+  const levels = Object.fromEntries(ranked.map(([k, v]) => [k, v >= max * .66 ? 3 : v >= max * .33 ? 2 : 1]));
+  const list = (title, arr, cls) => arr.length ? `<div class="rv-block ${cls}"><h4>${title}</h4><ul>${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+  return `<section class="review">
+    <h3 class="sub">${TT('Bilan de la séance', 'Session review')}</h3>
+    <p class="rv-sum">${TT(`${r.exercises} exercice${r.exercises > 1 ? 's' : ''}, ${r.setsDone} série${r.setsDone > 1 ? 's' : ''} sur ${r.setsTotal}, ${r.minutes} min.`, `${r.exercises} exercise(s), ${r.setsDone} of ${r.setsTotal} sets, ${r.minutes} min.`)}</p>
+    ${ranked.length ? `<div class="muscles rv-mus">${FIG.muscles({}, TT('Muscles touchés', 'Muscles worked'), levels)}
+      <div class="muscles__legend"><p><strong>${TT('Muscles touchés', 'Muscles worked')}</strong><br>${ranked.slice(0, 6).map(([k]) => MUSCLES[k]).join(', ')}</p></div></div>` : ''}
+    ${list(TT('Ce qui est bien', 'What went well'), r.good, 'rv-good')}
+    ${list(TT('À faire en plus', 'To add'), r.more, 'rv-more')}
+    ${list(TT('La prochaine fois', 'Next time'), r.next, 'rv-next')}
+    ${r.loads.length ? `<div class="rv-block rv-loads"><h4>${TT('Charges gardées pour la prochaine fois', 'Loads kept for next time')}</h4>
+      <ul>${r.loads.map(l => `<li><span>${esc(EX[l.ex].name)}</span><strong>${fmtKg(l.kg)} kg</strong></li>`).join('')}</ul></div>` : ''}
+  </section>`;
+}
+
 function openFinish() {
   const a = state.active, s = sessionOf(a.code);
   const st = sessionStats(a), prs = detectPRs(a.items);
@@ -1054,6 +1130,7 @@ function openFinish() {
       <div class="stat"><p class="stat__value">${fmtVolume(st.volume)}</p><p class="stat__label">soulevés</p></div>
     </div>
     ${prs.length ? `<div class="prs"><h3 class="sub">${ICON.trophy} ${prs.length > 1 ? 'Nouveaux records' : 'Nouveau record'}</h3>${prs.map(p => `<p><strong>${esc(EX[p.ex].name)}</strong> : ${p.text}</p>`).join('')}</div>` : ''}
+    <div id="fin-review">${reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes }))}</div>
     <h3 class="sub">Fréquence cardiaque <span class="muted small">(Apple Watch, facultatif)</span></h3>
     ${hrFieldsHTML(a.hrAvg, a.hrMax)}
     <div id="hr-fb">${hrFeedback(a.code, a.hrAvg, a.hrMax)}</div>
@@ -1071,6 +1148,7 @@ function openFinish() {
   $('#hr-avg', body).oninput = hrInput; $('#hr-max', body).oninput = hrInput;
   $$('[data-rpe]', body).forEach(b => b.onclick = () => {
     a.rpe = b.dataset.rpe; save();
+    $('#fin-review', body).innerHTML = reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes }));
     $$('[data-rpe]', body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   });
   $('#fin-notes').oninput = e => { a.notes = e.target.value; save(); };
@@ -1226,7 +1304,7 @@ function drawFocus() {
       </div>
       <h2 class="focus__name">${esc(e.name)}</h2>
       ${primaryText(e) ? `<p class="focus__mus">${esc(primaryText(e))}</p>` : ''}
-      ${e.loaded && sug ? `<p class="focus__rec">${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} conseillée : <strong>${fmtKg(sug.kg)} kg</strong>${sug.up ? ' <span class="pill pill--sm">progression</span>' : ''}</p>` : ''}
+      ${e.loaded && sug ? `<p class="focus__rec">${sug.start ? `${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} conseillée` : 'Même charge que la dernière fois'} : <strong>${fmtKg(sug.kg)} kg</strong>${sug.up ? ` <button class="pill pill--btn" type="button" data-fbump>${sug.assisted ? 'Contrepoids' : 'Monter à'} ${fmtKg(sug.next)} kg</button>` : ''}</p>` : ''}
       ${state.exNotes[it.ex] ? `<p class="wx__note">Mes réglages : ${esc(state.exNotes[it.ex])}</p>` : ''}
       ${isTime ? `
         <div class="rings">${ring(it.sets[0].done ? 1 : 0, `${it.minutes}`, 'minutes')}${ring(1, fmtClock(0), 'Chrono', 'f-rest')}</div>
@@ -1271,6 +1349,7 @@ function drawFocus() {
     if ('fnext' in d) { if (focusIdx === n - 1) { closeFocus(); return openFinish(); } focusIdx++; return drawFocus(); }
     if (d.fkg) { const inp = $('#f-kg', ov), v = num(inp.value) || 0, stp = kgStep(it.ex, v); inp.value = String(Math.max(0, +(v + stp * +d.fkg).toFixed(2))); return readInputs(); }
     if (d.frep) { const inp = $('#f-rep', ov), v = num(inp.value) || 0; inp.value = String(Math.max(1, v + +d.frep)); readInputs(); $('.rings .ring__v', ov).textContent = inp.value; return; }
+    if ('fbump' in d) { const sg = suggestFor(it); if (sg?.next != null) { it.sets.forEach(x => { if (!x.done) x.kg = String(sg.next); }); save(); toast(`Charge réglée à ${fmtKg(sg.next)} kg.`); } return drawFocus(); }
     if ('faddset' in d) { it.sets.push({ kg: '', reps: '', sec: '', done: false }); save(); return drawFocus(); }
     if ('frun' in d) return startTimer(it.minutes * 60, e.name, () => { if (state.active === a) { it.sets[0].done = true; it.sets[0].t = Date.now(); save(); if ($('#focus')) drawFocus(); } });
     if ('fhold' in d) return startTimer(it.hold, `${e.name}, tiens bon`);
@@ -1711,6 +1790,8 @@ function openSession(id) {
       <div class="stat"><p class="stat__value">${h.setsDone}/${h.setsTotal}</p><p class="stat__label">séries</p></div>
       <div class="stat"><p class="stat__value">${fmtVolume(h.volume || 0)}</p><p class="stat__label">soulevés</p></div>
     </div>
+    ${reviewHTML(sessionReview({ items: h.items || [], code: h.code, rpe: h.rpe, minutes: h.minutes }))}
+    <h3 class="sub">${TT('Détail', 'Details')}</h3>
     ${(h.items || []).map(it => {
       const done = (it.sets || []).filter(s => s.done);
       if (!done.length) return '';
@@ -2325,7 +2406,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '31';
+const APP_VERSION = '32';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

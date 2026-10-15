@@ -764,3 +764,19 @@ body.has-focus .timer { display: none; }
 .ms-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: center; gap: 4px; }
 .ms-row--top .row { box-shadow: inset 0 0 0 1.5px var(--court); }
 .ms-row .icon-btn { font: 700 1.1rem var(--display); color: var(--court); }
+
+/* v32 : bilan de séance */
+.review { display: grid; gap: 10px; }
+.rv-sum { font-weight: 600; }
+.rv-block { border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface-2); border-left: 4px solid var(--c, var(--line)); }
+.rv-block h4 { margin: 0 0 4px; font: 800 1.05rem var(--display); }
+.rv-block ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .93rem; line-height: 1.35; }
+.rv-good { --c: var(--good); } .rv-more { --c: var(--ball); } .rv-next { --c: var(--court); }
+.rv-loads ul { list-style: none; padding: 0; }
+.rv-loads li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-top: 1px solid var(--line); }
+.rv-loads li:first-child { border-top: 0; }
+.rv-mus { padding: 8px; }
+.suggest { flex-wrap: wrap; align-items: center; }
+.suggest .btn { margin-left: auto; }
+.suggest--same { background: var(--surface-2); }
+.pill--btn { border: 0; cursor: pointer; background: color-mix(in srgb, var(--court) 18%, transparent); color: var(--court); font-weight: 600; padding: 4px 10px; margin-left: 6px; }
