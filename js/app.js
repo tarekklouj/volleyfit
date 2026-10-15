@@ -648,6 +648,106 @@ function hrFieldsHTML(avg, mx) {
     </div>`;
 }
 
+
+/* ================= Coach : quelle séance faire ensuite ? =================
+   Regarde ce qui a été travaillé (séances du programme ET séances libres), le temps de
+   récupération de chaque groupe, l'équilibre de la semaine, les matchs et la fatigue. */
+const REST_H = { legs: 60, push: 48, pull: 48, core: 24, cuff: 24 };
+const WEEK_TARGET = { legs: 20, push: 14, pull: 14, core: 9, cuff: 4 };
+const CAT_LABEL = () => ({ legs: TT('jambes', 'legs'), push: TT('poussée (pectoraux, épaules)', 'push (chest, shoulders)'), pull: TT('dos', 'back'), core: TT('abdos et gainage', 'abs and core'), cuff: TT('prévention des épaules', 'shoulder prevention') });
+function catOf(m) { return Object.keys(CAT).find(k => CAT[k].includes(m)); }
+function trainingLoad(at = Date.now(), extra = null) {
+  const last = {}, week = {}, sessions = [];
+  const add = (items, t) => {
+    let any = false; const cs = {};
+    for (const it of items || []) {
+      const e = EX[it.ex]; if (!e || it.kind === 'warmup' || it.kind === 'time') continue;
+      const n = (it.sets || []).filter(x => x.done).length; if (!n) continue;
+      any = true;
+      (e.target?.p || []).forEach(m => { const c = catOf(m); if (c) cs[c] = (cs[c] || 0) + n; });
+      (e.target?.s || []).forEach(m => { const c = catOf(m); if (c) cs[c] = (cs[c] || 0) + n / 3; });
+    }
+    for (const [c, v] of Object.entries(cs)) {
+      if (v >= 2 && (!last[c] || t > last[c])) last[c] = t;
+      if (at - t <= 7 * 864e5) week[c] = (week[c] || 0) + v;
+    }
+    if (any) sessions.push(t);
+  };
+  for (const h of state.history) add(h.items, +new Date(h.date));
+  if (extra) add(extra, Date.now());
+  const hours = Object.fromEntries(Object.keys(CAT).map(c => [c, last[c] ? (at - last[c]) / 36e5 : 999]));
+  return { hours, week, sessions };
+}
+function sessionCats(code) {
+  const s = SESSIONS[code]; if (!s) return {};
+  const w = {}; let tot = 0;
+  for (const it of s.items) {
+    const e = EX[it.ex]; if (!e || it.duration) continue;
+    const n = it.sets || 3; tot += n;
+    (e.target?.p || []).forEach(m => { const c = catOf(m); if (c) w[c] = (w[c] || 0) + n; });
+  }
+  for (const c in w) w[c] /= tot || 1;
+  return w;
+}
+function smartNext({ at = new Date(), extra = null } = {}) {
+  const L = trainingLoad(+at, extra), p = state.profile, wd = weekday(at), lab = CAT_LABEL();
+  const m = p.matchDay, hasM = m !== null && m !== undefined;
+  const matchToday = hasM && m === wd, matchTomorrow = hasM && (m + 6) % 7 === wd, matchYesterday = hasM && (m + 1) % 7 === wd;
+  const recent3 = L.sessions.filter(t => +at - t < 3 * 864e5).length;
+  const lastHard = state.history.find(h => +at - +new Date(h.date) < 30 * 36e5 && num(h.rpe) >= 9);
+  const cands = ['A', 'B', 'C'].concat(SESSIONS.H ? ['H'] : []);
+  const scored = cands.map(code => {
+    const w = sessionCats(code); let sc = 0; const why = [];
+    for (const [c, f] of Object.entries(w)) {
+      const h = L.hours[c], rest = REST_H[c];
+      if (h < rest) { sc -= f * (1 - h / rest) * 4; if (f > .25) why.push({ neg: true, c, h }); }
+      else { sc += f * Math.min(h / 72, 2); if (f > .25) why.push({ neg: false, c, h }); }
+      sc += f * Math.max(0, 1 - (L.week[c] || 0) / WEEK_TARGET[c]) * 1.5;
+    }
+    if (matchTomorrow && code === 'A') sc -= 3;
+    if (matchTomorrow && code === 'C') sc -= 1;
+    if (code === 'H') sc -= .4;
+    return { code, sc, why };
+  }).sort((a, b) => b.sc - a.sc);
+  const reasons = [];
+  // récupération prioritaire ?
+  if (matchToday) return { code: null, reasons: [TT('Jour de match : pas de salle aujourd\'hui. Échauffe bien tes épaules avant le match.', 'Match day: no gym today. Warm up your shoulders well before the match.')] };
+  let best = scored[0];
+  const recoverScore = (matchYesterday ? 3 : 0) + (recent3 >= 3 ? 2 : 0) + (lastHard ? 1.5 : 0) + (best.sc < 0 ? 2 : 0);
+  if (recoverScore >= 2 || (SESSIONS.R && best.sc < -0.5)) {
+    if (matchYesterday) reasons.push(TT('Match hier : place à la récupération.', 'Match yesterday: time to recover.'));
+    if (recent3 >= 3) reasons.push(TT(`${recent3} séances sur les 3 derniers jours : ton corps a besoin de souffler.`, `${recent3} sessions in the last 3 days: your body needs a break.`));
+    if (lastHard) reasons.push(TT('Ta dernière séance était très dure (effort 9 ou 10).', 'Your last session was very hard (effort 9 or 10).'));
+    if (best.sc < 0) reasons.push(TT('Les groupes travaillés ces deux derniers jours n\'ont pas encore récupéré : une séance légère aujourd\'hui, et tu repars plus fort demain.', 'The groups worked in the last two days haven\'t recovered yet: a light session today, and you come back stronger tomorrow.'));
+    return { code: 'R', reasons, alt: best.code };
+  }
+  const fmtH = h => h >= 999 ? TT('pas encore cette semaine', 'not yet this week') : h < 36 ? TT('hier', 'yesterday') : TT(`il y a ${Math.round(h / 24)} jours`, `${Math.round(h / 24)} days ago`);
+  const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+  for (const y of best.why.filter(x => !x.neg).slice(0, 2)) reasons.push(y.h >= 999
+    ? TT(`${cap(lab[y.c])} : pas encore travaillé${y.c === 'legs' ? 'es' : ''} cette semaine.`, `${cap(lab[y.c])}: not worked yet this week.`)
+    : TT(`${cap(lab[y.c])} : dernière fois ${fmtH(y.h)}, c'est récupéré.`, `${cap(lab[y.c])}: last time ${fmtH(y.h)}, recovered.`));
+  for (const y of best.why.filter(x => x.neg).slice(0, 2)) reasons.push(TT(`${cap(lab[y.c])} : ${Math.round(y.h)} h de repos, presque récupéré. Garde des charges modérées.`, `${cap(lab[y.c])}: ${Math.round(y.h)} h of rest, almost recovered. Keep moderate loads.`));
+  const own = new Set(best.why.map(x => x.c));
+  const tired = Object.keys(CAT).filter(c => c !== 'cuff' && !own.has(c) && L.hours[c] < REST_H[c]);
+  if (tired.length) reasons.push(TT(`On laisse récupérer : ${tired.map(c => lab[c]).join(', ')} (travaillé${tired.length > 1 ? 's' : ''} il y a moins de ${Math.max(...tired.map(c => REST_H[c]))} h).`, `Letting these recover: ${tired.map(c => lab[c]).join(', ')} (worked less than ${Math.max(...tired.map(c => REST_H[c]))} h ago).`));
+  if (matchTomorrow) reasons.push(TT('Match demain : pas de jambes lourdes aujourd\'hui.', 'Match tomorrow: no heavy legs today.'));
+  const low = Object.keys(WEEK_TARGET).filter(c => (L.week[c] || 0) < WEEK_TARGET[c] / 3 && sessionCats(best.code)[c] > .2);
+  if (low.length && !best.why.length) reasons.push(TT(`Peu travaillé cette semaine : ${low.map(c => lab[c]).join(', ')}.`, `Little work this week: ${low.map(c => lab[c]).join(', ')}.`));
+  if (!reasons.length) reasons.push(TT('La séance la plus équilibrée par rapport à ta semaine.', 'The most balanced session for your week.'));
+  return { code: best.code, reasons, alt: scored[1]?.code };
+}
+function coachHTML(planned) {
+  const r = smartNext();
+  if (!r.code) return `<section class="panel coach"><div class="panel__head"><h2>${TT('Séance conseillée', 'Suggested session')}</h2></div><ul class="coach__why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>`;
+  const s = SESSIONS[r.code], same = planned === r.code;
+  return `<section class="panel coach" style="--sess:${s.color}">
+    <div class="panel__head"><h2>${TT('Séance conseillée', 'Suggested session')}</h2><span class="pill pill--sm">${TT('selon tes dernières séances', 'based on your recent sessions')}</span></div>
+    <div class="coach__pick"><span class="tag">${r.code}</span><strong>${esc(s.name)}</strong>${same ? `<span class="coach__ok">${ICON.check} ${TT('c\'est aussi ta séance prévue', 'also your planned session')}</span>` : ''}</div>
+    <ul class="coach__why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    ${same ? '' : `<button class="btn btn--block" type="button" data-start="${r.code}" style="background:${s.color}">${ICON.play} ${TT('Faire la séance', 'Do session')} ${r.code}</button>`}
+  </section>`;
+}
+
 /* ================= Aujourd'hui ================= */
 const NET = '<div class="court__net" aria-hidden="true"></div>';
 
@@ -713,6 +813,7 @@ function renderToday() {
   el.innerHTML = `
     ${identityBanner()}
     ${hero}
+    ${coachHTML(code)}
     ${isDeload() ? '<p class="callout">Semaine 4 du cycle : semaine allégée. Une série de moins par exercice pour bien récupérer.</p>' : ''}
     <section class="panel">
       <div class="panel__head"><h2>Ta semaine</h2><span class="muted small">${done} sur ${goal}</span></div>
@@ -1058,7 +1159,7 @@ const CAT = {
   legs: ['quadriceps', 'ischios', 'fessiers', 'mollets', 'adducteurs', 'abducteurs'], core: ['abdos', 'obliques', 'lombaires'], cuff: ['coiffe']
 };
 const CAT_EX = { push: ['chest-press', 'shoulder-press'], pull: ['tirage-vertical', 'rowing-assis'], legs: ['presse', 'leg-curl'], core: ['crunch-machine', 'extension-lombaire'], cuff: ['rot-ext', 'face-pull'] };
-function sessionReview({ items, code, rpe, minutes, start }) {
+function sessionReview({ items, code, rpe, minutes, start, live }) {
   const strength = items.filter(it => (it.kind === 'reps' || it.kind === 'hold') && EX[it.ex]);
   const done = strength.map(it => ({ it, n: (it.sets || []).filter(x => x.done).length, total: (it.sets || []).length })).filter(x => x.total);
   const setsDone = done.reduce((t, x) => t + x.n, 0), setsTotal = done.reduce((t, x) => t + x.total, 0);
@@ -1099,6 +1200,10 @@ function sessionReview({ items, code, rpe, minutes, start }) {
     const hit = ds.length === it.sets.length && ds.every(x => (it.kind === 'hold' ? num(x.sec) : num(x.reps)) >= top);
     return { ex: it.ex, kg, hit };
   }).filter(Boolean);
+  if (live) {
+    const nx = smartNext({ at: new Date(Date.now() + 24 * 36e5), extra: items });
+    if (nx.code && SESSIONS[nx.code]) next.unshift(TT(`Prochaine séance conseillée : séance ${nx.code}, ${SESSIONS[nx.code].name.toLowerCase()}. ${nx.reasons[0] || ''}`, `Suggested next session: session ${nx.code}, ${SESSIONS[nx.code].name.toLowerCase()}. ${nx.reasons[0] || ''}`));
+  }
   if (loads.some(l => l.hit)) next.push(TT('Exercices réussis à 100 % : l\'app te proposera de monter d\'un cran, tu décideras sur place.', 'Exercises done at 100 %: the app will offer to go up one step, you decide on the spot.'));
   if (!missing.length && !more.length) next.push(TT('Continue comme ça : même structure, mêmes charges, et monte quand tout passe facilement.', 'Keep it up: same structure, same loads, and go up when everything feels easy.'));
   return { minutes, setsDone, setsTotal, exercises: done.filter(x => x.n).length, mus, good, more, next, loads };
@@ -1208,7 +1313,7 @@ function openFinish() {
       <div class="stat"><p class="stat__value">${fmtVolume(st.volume)}</p><p class="stat__label">soulevés</p></div>
     </div>
     ${prs.length ? `<div class="prs"><h3 class="sub">${ICON.trophy} ${prs.length > 1 ? 'Nouveaux records' : 'Nouveau record'}</h3>${prs.map(p => `<p><strong>${esc(EX[p.ex].name)}</strong> : ${p.text}</p>`).join('')}</div>` : ''}
-    <div id="fin-review">${reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes }))}</div>
+    <div id="fin-review">${reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes, live: true }))}</div>
     <h3 class="sub">Fréquence cardiaque <span class="muted small">(Apple Watch, facultatif)</span></h3>
     ${a.hr?.length ? hrLogHTML(a.hr, a.start) : ''}
     ${hrFieldsHTML(a.hrAvg, a.hrMax)}
@@ -1227,7 +1332,7 @@ function openFinish() {
   $('#hr-avg', body).oninput = hrInput; $('#hr-max', body).oninput = hrInput;
   $$('[data-rpe]', body).forEach(b => b.onclick = () => {
     a.rpe = b.dataset.rpe; save();
-    $('#fin-review', body).innerHTML = reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes }));
+    $('#fin-review', body).innerHTML = reviewHTML(sessionReview({ items: a.items, code: a.code, rpe: a.rpe, minutes: st.minutes, live: true }));
     $$('[data-rpe]', body).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   });
   $('#fin-notes').oninput = e => { a.notes = e.target.value; save(); };
@@ -2490,7 +2595,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '33';
+const APP_VERSION = '34';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

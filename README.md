@@ -23,6 +23,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Mode focus** pendant la séance : un exercice à la fois, grande animation, charge conseillée, cercles répétitions, repos et séries, réglage de la charge en un tap, historique des séries avec l'heure.
 - **Séance Maison** sans machine (poids du corps ou un élastique) : 22 exercices à la maison, sans poulie ni machine, même structure par familles et même rotation maîtrisée. Chaque groupe musculaire de l'onglet Muscles a sa section « À la maison, sans machine ».
 - **Recherche par machine** : tape le nom écrit sur la machine en français, anglais ou néerlandais (« Diverging lat pulldown », « Beenpers », « Converging chest press »…), l'app trouve l'exercice et l'ajoute à la séance ou démarre une séance libre.
+- **Coach de séance** : propose la séance suivante selon ce qui a vraiment été travaillé (séances libres comprises), le temps de récupération de chaque groupe (jambes 60 h, haut du corps 48 h, abdos 24 h), l'équilibre de la semaine, les matchs et la fatigue.
 - **Bilan de séance** automatique : résumé, muscles touchés, ce qui est bien, ce qu'il faut ajouter, ce qu'il faut faire la prochaine fois et charges gardées.
 - **Même charge par défaut** : l'app reprend la charge de la dernière fois ; la progression est proposée en un tap.
 - **Séance libre** : depuis la fiche de n'importe quel exercice, « Faire cet exercice » lance une séance hors programme, ou « Ajouter à la séance en cours ». Les séries validées comptent dans l'historique, les records et les zones ciblées.

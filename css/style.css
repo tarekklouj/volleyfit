@@ -802,3 +802,10 @@ body.has-focus .timer { display: none; }
 .hr-zrow .zone__n { height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; font: 800 .9rem var(--display); }
 .hr-zrow .zone--1 { --zc: #7A9592; } .hr-zrow .zone--2 { --zc: #1F6FA8; } .hr-zrow .zone--3 { --zc: #0F7C78; } .hr-zrow .zone--4 { --zc: #E08A2E; } .hr-zrow .zone--5 { --zc: #C9402F; }
 .hr-zrow .share__bar span { background: #E5484D; }
+
+/* v34 : coach */
+.coach { box-shadow: inset 0 0 0 2px var(--sess, var(--court)); }
+.coach__pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.15rem; }
+.coach__ok { display: inline-flex; align-items: center; gap: 4px; font-size: .85rem; color: var(--good); font-weight: 600; }
+.coach__ok svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3; }
+.coach__why { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .93rem; line-height: 1.35; color: var(--muted); }
