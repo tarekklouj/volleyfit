@@ -375,6 +375,82 @@ function doExercise(id) {
   toast('Séance libre démarrée.', { action: 'Annuler', onAction: cancelSession, duration: 8000 });
 }
 
+
+/* ================= Recherche par nom de machine (FR, EN, NL) =================
+   « Diverging lat pulldown », « Beenpers », « converging chest press »… → exercice. */
+const MSTOP = new Set(['machine', 'machines', 'de', 'la', 'le', 'les', 'a', 'au', 'du', 'des', 'the', 'seated', 'assis', 'zittend', 'toestel', 'apparaat',
+  'matrix', 'technogym', 'life', 'fitness', 'hammer', 'strength', 'basic', 'fit', 'pro', 'station', 'van', 'het', 'een', 'met', 'voor']);
+const mnorm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w && !MSTOP.has(w)).map(w => w.length > 4 ? w.replace(/s$/, '') : w);
+let MIDX = null;
+function machineIndex() {
+  if (MIDX) return MIDX;
+  MIDX = [];
+  for (const [id, e] of Object.entries(EX)) {
+    const names = [e.name, ...(MACHINE_NAMES[id] || [])];
+    for (const n of names) { const t = mnorm(n); if (t.length) MIDX.push({ id, label: n, t }); }
+  }
+  return MIDX;
+}
+function tokMatch(q, a) {
+  if (q === a) return 1;
+  if (a.length >= 4 && (a.startsWith(q) && q.length >= 4 || q.startsWith(a))) return .85;
+  if (a.length >= 5 && q.length >= 4 && Math.abs(a.length - q.length) <= 2 && lev(q, a) <= (a.length >= 8 ? 2 : 1)) return .75;
+  return 0;
+}
+function searchMachine(query, max = 6) {
+  const q = mnorm(query);
+  if (!q.length) return [];
+  const best = {};
+  for (const { id, label, t } of machineIndex()) {
+    let got = 0; const usedQ = new Set();
+    for (const a of t) {
+      let m = 0, mi = -1;
+      q.forEach((w, i) => { if (usedQ.has(i)) return; const v = tokMatch(w, a); if (v > m) { m = v; mi = i; } });
+      if (mi >= 0 && m > 0) { usedQ.add(mi); got += m; }
+    }
+    if (!got) continue;
+    const cover = got / t.length, qcover = usedQ.size / q.length;
+    if (cover < .5) continue;
+    const score = cover * 2 + qcover + got * .3 - (EX[id].zone === 'Maison' ? .4 : 0);
+    if (!best[id] || score > best[id].score) best[id] = { id, label, score };
+  }
+  const list = Object.values(best).sort((a, b) => b.score - a.score);
+  const top = list[0]?.score || 0;
+  return list.filter(r => r.score >= top * .8).slice(0, max);
+}
+function openMachineSearch() {
+  const body = openSheet(`
+    <h2 class="sheet__title">${state.active ? 'Ajouter un exercice' : 'Séance libre'}</h2>
+    <p class="muted">Tape le nom écrit sur la machine, en français, anglais ou néerlandais.</p>
+    <label class="search">${ICON.search}<input type="search" id="ms-q" placeholder="Ex. : Diverging lat pulldown" autocomplete="off" aria-label="Nom de la machine"></label>
+    <div class="chips" id="ms-ex">${['Leg press', 'Beenpers', 'Lat pulldown', 'Chest press', 'Borstpers', 'Leg curl'].map(x => `<button class="chip chip--sm" type="button" data-msx="${x}">${x}</button>`).join('')}</div>
+    <div id="ms-res" class="list" aria-live="polite"></div>
+    <button class="btn btn--ghost btn--block" type="button" id="ms-browse">Parcourir par muscle</button>
+  `, { label: 'Recherche par machine' });
+  const inp = $('#ms-q', body), out = $('#ms-res', body);
+  const draw = () => {
+    const v = inp.value.trim();
+    $('#ms-ex', body).hidden = !!v;
+    if (!v) { out.innerHTML = ''; return; }
+    const res = searchMachine(v);
+    out.innerHTML = res.length ? res.map((r, i) => `
+      <div class="ms-row${i === 0 ? ' ms-row--top' : ''}">
+        <button class="row" type="button" data-pick="${r.id}">${exThumb(r.id, 'thumb--sm')}
+          <span class="row__main"><strong>${esc(EX[r.id].name)}</strong><br><span class="muted small">${esc(EX[r.id].equip)}${r.label !== EX[r.id].name ? ` · « ${esc(r.label)} »` : ''}</span></span>
+          <span class="pill pill--sm">${state.active ? 'Ajouter' : 'Faire'}</span>
+        </button>
+        <button class="icon-btn" type="button" data-info="${r.id}" aria-label="Voir comment faire">i</button>
+      </div>`).join('')
+      : `<p class="empty">Aucune machine reconnue. Essaie un autre mot du nom (par exemple « pulldown », « press », « curl ») ou parcours par muscle.</p>`;
+    $$('[data-pick]', out).forEach(b => b.onclick = () => doExercise(b.dataset.pick));
+    $$('[data-info]', out).forEach(b => b.onclick = () => openExercise(b.dataset.info));
+  };
+  inp.oninput = draw;
+  $$('[data-msx]', body).forEach(b => b.onclick = () => { inp.value = b.dataset.msx; draw(); });
+  $('#ms-browse', body).onclick = () => { closeSheet(); musMode = 'groupes'; musGroup = null; go('muscles'); };
+  setTimeout(() => inp.focus(), 150);
+}
+
 function openExercise(id) {
   const e = EX[id], best = bestFor(id);
   let anim = { stop() {} };
@@ -656,6 +732,7 @@ function renderToday() {
     </button>` : ''}
     <section class="panel">
       <h2>Faire une autre séance</h2>
+      <button class="free-cta" type="button" id="free-machine">${ICON.search}<span><strong>Séance libre</strong><br><span class="small">Tape le nom d'une machine, l'app te donne l'exercice</span></span></button>
       <div class="sess-grid">${Object.entries(SESSIONS).map(([k, s]) =>
         `<button class="sess-btn" style="--sess:${s.color}" data-start="${k}" type="button"><b>${k}</b><span>${esc(s.name)}</span></button>`).join('')}</div>
     </section>`;
@@ -663,6 +740,7 @@ function renderToday() {
   $$('[data-session]', el).forEach(b => b.addEventListener('click', () => openSession(b.dataset.session)));
   $$('[data-reroll]', el).forEach(b => b.addEventListener('click', () => rerollSession(b.dataset.reroll)));
   $$('[data-complete-id]', el).forEach(b => b.addEventListener('click', openIdentitySheet));
+  $('#free-machine', el)?.addEventListener('click', openMachineSearch);
 }
 
 /* ================= Séance en cours ================= */
@@ -767,7 +845,7 @@ function renderWorkout(el) {
   $('#abandon').onclick = cancelSession;
   $('#cancel-top').onclick = cancelSession;
   $('#focus-open').onclick = () => openFocus();
-  $('#add-ex').onclick = () => { musMode = 'groupes'; musGroup = null; go('muscles'); toast('Choisis un exercice, puis « Ajouter à la séance en cours ».'); };
+  $('#add-ex').onclick = openMachineSearch;
 }
 
 /* Charge de départ selon le poids de corps et le niveau de force. */
@@ -1352,7 +1430,7 @@ function renderLibrary(el, head) {
     const q = libQuery.trim().toLowerCase();
     const list = Object.entries(EX).filter(([, e]) =>
       (libZone === 'Tous' || e.zone === libZone) &&
-      (!q || `${e.name} ${e.equip} ${muscleNames([...(e.target?.p || []), ...(e.target?.s || [])]).join(' ')}`.toLowerCase().includes(q)));
+      (!q || `${e.name} ${e.equip} ${muscleNames([...(e.target?.p || []), ...(e.target?.s || [])]).join(' ')} ${(MACHINE_NAMES[id] || []).join(' ')}`.toLowerCase().includes(q) || searchMachine(q, 12).some(r => r.id === id)));
     $('#lib-grid').innerHTML = list.length ? list.map(([id, e]) => `
       <button class="lib-card" type="button" data-ex="${id}">
         ${exThumb(id)}
@@ -2247,7 +2325,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '30';
+const APP_VERSION = '31';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

@@ -620,3 +620,385 @@ const FOODS = [
   { id: "vin", n: "Vin", kcal: 85, p: 0, portion: 125, a: ["vin", "vin rouge", "vin blanc"] },
   { id: "boisson-sport", n: "Boisson isotonique", kcal: 25, p: 0, portion: 500, a: ["isotonique", "aquarius", "powerade", "gatorade", "boisson sport"] }
 ];
+
+/* Noms de machines (français, anglais, néerlandais) pour la recherche par machine. */
+const MACHINE_NAMES = {
+ "tapis": [
+  "treadmill",
+  "loopband",
+  "tapis de course",
+  "running",
+  "Treadmill"
+ ],
+ "velo": [
+  "bike",
+  "upright bike",
+  "recumbent bike",
+  "fiets",
+  "hometrainer",
+  "spinning",
+  "velo",
+  "Bike"
+ ],
+ "rameur": [
+  "rower",
+  "rowing machine",
+  "roeitoestel",
+  "roeimachine",
+  "concept2",
+  "rameur",
+  "Rower"
+ ],
+ "elliptique": [
+  "cross trainer",
+  "crosstrainer",
+  "elliptical",
+  "elliptique",
+  "Elliptical"
+ ],
+ "escalier": [
+  "stair climber",
+  "stairmaster",
+  "traploper",
+  "stepper",
+  "escalier",
+  "Stair climber"
+ ],
+ "presse": [
+  "leg press",
+  "beenpers",
+  "seated leg press",
+  "incline leg press",
+  "linear leg press",
+  "horizontal leg press",
+  "presse a cuisses",
+  "presse jambes",
+  "Leg press"
+ ],
+ "presse-explosive": [
+  "explosive leg press",
+  "explosieve beenpers",
+  "Explosive leg press"
+ ],
+ "smith-squat": [
+  "smith machine",
+  "smith squat",
+  "multipower",
+  "squat",
+  "geleide stang",
+  "kniebuiging",
+  "Smith machine squat"
+ ],
+ "fente-smith": [
+  "smith lunge",
+  "lunge",
+  "fentes",
+  "uitvalspas",
+  "split squat",
+  "Smith machine lunges"
+ ],
+ "leg-ext-iso": [
+  "leg extension hold",
+  "isometric leg extension",
+  "Leg extension, isometric hold"
+ ],
+ "leg-extension": [
+  "leg extension",
+  "beenstrekken",
+  "beenstrekker",
+  "knee extension",
+  "quadriceps",
+  "leg ext",
+  "Leg extension"
+ ],
+ "leg-curl": [
+  "leg curl",
+  "seated leg curl",
+  "lying leg curl",
+  "prone leg curl",
+  "hamstring curl",
+  "beencurl",
+  "beenbuigen",
+  "hamstring",
+  "leg flexion",
+  "Leg curl"
+ ],
+ "rdl-smith": [
+  "romanian deadlift",
+  "rdl",
+  "stiff leg deadlift",
+  "roemeense deadlift",
+  "smith deadlift",
+  "deadlift",
+  "Smith machine Romanian deadlift"
+ ],
+ "hip-thrust": [
+  "hip thrust",
+  "glute bridge",
+  "heupstoot",
+  "glute drive",
+  "hip thrust machine",
+  "Smith machine hip thrust"
+ ],
+ "abducteurs": [
+  "hip abduction",
+  "abductor",
+  "abductie",
+  "heupabductie",
+  "outer thigh",
+  "abducteurs",
+  "abduction",
+  "Hip abduction machine"
+ ],
+ "adducteurs": [
+  "hip adduction",
+  "adductor",
+  "adductie",
+  "heupadductie",
+  "inner thigh",
+  "adducteurs",
+  "adduction",
+  "Hip adduction machine"
+ ],
+ "mollets-presse": [
+  "calf press",
+  "calf on leg press",
+  "kuiten beenpers",
+  "calf extension",
+  "Calf raises on the leg press"
+ ],
+ "mollets-smith": [
+  "standing calf raise",
+  "calf raise",
+  "kuitheffen",
+  "calf machine",
+  "kuiten",
+  "calf",
+  "Standing calf raises on the Smith"
+ ],
+ "rot-ext": [
+  "external rotation",
+  "cable external rotation",
+  "externe rotatie",
+  "rotator cuff",
+  "Cable external rotation"
+ ],
+ "face-pull": [
+  "face pull",
+  "rope pull",
+  "kabel face pull",
+  "Face pull"
+ ],
+ "tirage-vertical": [
+  "lat pulldown",
+  "diverging lat pulldown",
+  "pulldown",
+  "lat pull",
+  "lat trekken",
+  "latissimus",
+  "front pulldown",
+  "wide grip pulldown",
+  "tirage poitrine",
+  "Lat pulldown"
+ ],
+ "chest-press": [
+  "chest press",
+  "converging chest press",
+  "seated chest press",
+  "borstpers",
+  "borst",
+  "bench press machine",
+  "incline chest press",
+  "Machine chest press"
+ ],
+ "rowing-assis": [
+  "seated row",
+  "diverging seated row",
+  "low row",
+  "row machine",
+  "cable row",
+  "roeien",
+  "rug roeien",
+  "tirage horizontal",
+  "mid row",
+  "Seated row"
+ ],
+ "reverse-fly": [
+  "rear delt",
+  "reverse fly",
+  "rear delt fly",
+  "reverse pec deck",
+  "achterste schouder",
+  "oiseau",
+  "rear deltoid",
+  "Rear delt machine"
+ ],
+ "pec-deck": [
+  "pec deck",
+  "pec fly",
+  "butterfly",
+  "chest fly",
+  "vlinder",
+  "borst fly",
+  "peck deck",
+  "pectoral fly",
+  "Pec deck (machine fly)"
+ ],
+ "cable-fly": [
+  "cable crossover",
+  "cable fly",
+  "crossover",
+  "kabel kruisen",
+  "vis a vis",
+  "dual cable",
+  "Cable crossover fly"
+ ],
+ "y-raise": [
+  "y raise",
+  "cable y raise",
+  "Cable Y raise"
+ ],
+ "pull-over": [
+  "pullover",
+  "pull over",
+  "straight arm pulldown",
+  "lat pullover",
+  "High cable pull-over"
+ ],
+ "woodchop": [
+  "woodchop",
+  "wood chop",
+  "cable rotation",
+  "houthakker",
+  "torso rotation",
+  "Cable woodchop"
+ ],
+ "crunch-machine": [
+  "ab crunch",
+  "abdominal crunch",
+  "abdominal",
+  "crunch machine",
+  "buikspieren",
+  "buikspiermachine",
+  "abs",
+  "rotary torso",
+  "Machine crunch"
+ ],
+ "extension-lombaire": [
+  "back extension",
+  "lower back",
+  "rugstrekken",
+  "hyperextension",
+  "roman chair",
+  "lombaires",
+  "lumbar extension",
+  "Back extension"
+ ],
+ "smith-bench": [
+  "smith bench press",
+  "bench press",
+  "bankdrukken",
+  "developpe couche",
+  "Smith machine bench press"
+ ],
+ "smith-incline": [
+  "incline bench press",
+  "incline press",
+  "schuin bankdrukken",
+  "incline smith",
+  "Smith machine incline press"
+ ],
+ "shoulder-press": [
+  "shoulder press",
+  "converging shoulder press",
+  "schouderpers",
+  "overhead press",
+  "military press",
+  "developpe epaules",
+  "Machine shoulder press"
+ ],
+ "lateral-raise": [
+  "lateral raise",
+  "side raise",
+  "zijwaarts heffen",
+  "elevations laterales",
+  "lateral raise machine",
+  "schouder zijwaarts",
+  "Cable lateral raise"
+ ],
+ "biceps-curl-cable": [
+  "cable curl",
+  "cable biceps curl",
+  "kabel bicepscurl",
+  "Cable biceps curl"
+ ],
+ "biceps-machine": [
+  "biceps curl",
+  "arm curl",
+  "preacher curl",
+  "bicepscurl",
+  "biceps machine",
+  "curl machine",
+  "biceps",
+  "Machine biceps curl"
+ ],
+ "hammer-rope": [
+  "hammer curl",
+  "rope hammer curl",
+  "hamer curl",
+  "Rope hammer curl"
+ ],
+ "triceps-pushdown": [
+  "triceps pushdown",
+  "pushdown",
+  "triceps press",
+  "tricepsstrekken",
+  "rope pushdown",
+  "triceps extension",
+  "triceps machine",
+  "triceps",
+  "Cable triceps pushdown"
+ ],
+ "triceps-overhead": [
+  "overhead triceps",
+  "overhead extension",
+  "french press",
+  "Overhead triceps extension"
+ ],
+ "dips-assist": [
+  "assisted dip",
+  "dip machine",
+  "dips",
+  "dippen",
+  "assisted chin dip",
+  "chin dip assist",
+  "Assisted dips"
+ ],
+ "traction-assist": [
+  "assisted pull up",
+  "assisted chin up",
+  "chin assist",
+  "optrekken",
+  "pull up machine",
+  "tractions",
+  "assisted chin dip",
+  "chin dip assist",
+  "Assisted pull-ups"
+ ],
+ "row-unilateral": [
+  "single arm row",
+  "one arm cable row",
+  "eenarmig roeien",
+  "unilateral row",
+  "Single-arm cable row"
+ ],
+ "kickback": [
+  "glute kickback",
+  "cable kickback",
+  "kickback",
+  "glute machine",
+  "bilspieren",
+  "glute",
+  "Cable glute kickback"
+ ]
+};

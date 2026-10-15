@@ -757,3 +757,10 @@ body.has-focus .timer { display: none; }
 /* v25 : à la maison */
 .home-panel { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #9333EA 50%, transparent); }
 .home-panel .pill { background: color-mix(in srgb, #9333EA 18%, transparent); }
+
+/* v31 : recherche par machine */
+.free-cta { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0; border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; background: color-mix(in srgb, var(--court) 14%, var(--surface-2)); box-shadow: inset 0 0 0 1.5px var(--court); cursor: pointer; line-height: 1.3; color: var(--ink); }
+.free-cta svg { width: 24px; height: 24px; fill: none; stroke: var(--court); stroke-width: 2.2; flex-shrink: 0; }
+.ms-row { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: center; gap: 4px; }
+.ms-row--top .row { box-shadow: inset 0 0 0 1.5px var(--court); }
+.ms-row .icon-btn { font: 700 1.1rem var(--display); color: var(--court); }
