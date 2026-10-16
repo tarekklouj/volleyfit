@@ -701,7 +701,7 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false } 
   const matchToday = hasM && m === wd, matchTomorrow = hasM && (m + 6) % 7 === wd, matchYesterday = hasM && (m + 1) % 7 === wd;
   const recent3 = L.sessions.filter(t => +at - t < 3 * 864e5).length;
   const lastHard = state.history.find(h => +at - +new Date(h.date) < 30 * 36e5 && num(h.rpe) >= 9);
-  const cands = ['A', 'B', 'C'].concat(SESSIONS.H && !gym ? ['H'] : []);
+  const cands = ['A', 'B', 'C'].concat(SESSIONS.H && !gym ? ['H'] : []).filter(c => !(matchTomorrow && (c === 'A' || c === 'C')));
   const obj = currentObjective();
   const scored = cands.map(code => {
     const w = sessionCats(code); let sc = 0; const why = [];
@@ -746,25 +746,33 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false } 
   return { code: best.code, reasons, alt: scored[1]?.code };
 }
 function virtualItems(code) { return buildItems(code).map(it => ({ ...it, sets: it.sets.map(x => ({ ...x, done: true })) })); }
-function dayBounds(i) { const d = new Date(weekStart(new Date())); d.setDate(d.getDate() + i); const e = new Date(d); e.setDate(e.getDate() + 1); return [d, e]; }
+function dayBounds(i, off = 0) { const d = new Date(weekStart(new Date())); d.setDate(d.getDate() + i + 7 * off); const e = new Date(d); e.setDate(e.getDate() + 1); return [d, e]; }
 /* Semaine intelligente : les jours de salle à venir reçoivent la séance que le coach choisirait,
    en tenant compte de ce qui a été fait ET des séances prévues avant ce jour-là. */
-function smartPlan() {
+const PLAN_CACHE = {};
+function smartPlan(off = 0) {
+  const key = `${off}:${state.history.length}:${state.history[0]?.id || 0}:${isoDate(new Date())}:${JSON.stringify(state.profile.gymDays)}:${state.profile.matchDay}`;
+  if (PLAN_CACHE[key]) return PLAN_CACHE[key];
   const base = planWeek(), wd = weekday(new Date());
-  const plan = [...base], why = {}, virtual = [];
-  for (let i = wd; i < 7; i++) {
-    const c = base[i];
-    if (!['A', 'B', 'C'].includes(c)) continue;
-    const [d0, d1] = dayBounds(i);
-    if (sessionsBetween(d0, d1).length) continue;
-    const at = new Date(d0); at.setHours(i === wd ? Math.max(new Date().getHours(), 8) : 18, 0, 0, 0);
-    const r = smartNext({ at, virtual, gym: true });
-    if (r.code && SESSIONS[r.code]) {
-      plan[i] = r.code; why[i] = r.reasons;
-      if (r.code !== 'R') virtual.push({ t: +at, items: virtualItems(r.code) });
+  if (off < 0) return (PLAN_CACHE[key] = { plan: [...base], why: {} });
+  const virtual = []; let out = null;
+  for (let w = 0; w <= off; w++) {
+    const plan = [...base], why = {};
+    for (let i = w === 0 ? wd : 0; i < 7; i++) {
+      const c = base[i];
+      if (!['A', 'B', 'C'].includes(c)) continue;
+      const [d0, d1] = dayBounds(i, w);
+      if (sessionsBetween(d0, d1).length) continue;
+      const at = new Date(d0); at.setHours(w === 0 && i === wd ? Math.max(new Date().getHours(), 8) : 18, 0, 0, 0);
+      const r = smartNext({ at, virtual, gym: true });
+      if (r.code && SESSIONS[r.code]) {
+        plan[i] = r.code; why[i] = r.reasons;
+        if (r.code !== 'R') virtual.push({ t: +at, items: virtualItems(r.code) });
+      }
     }
+    out = { plan, why };
   }
-  return { plan, why };
+  return (PLAN_CACHE[key] = out);
 }
 const OBJ_NOTE = () => ({
   muscle: TT('Prise de muscle : 3 à 4 séries de 8 à 12 répétitions, monte la charge dès que tout passe.', 'Muscle gain: 3 to 4 sets of 8 to 12 reps, raise the load as soon as everything passes.'),
@@ -772,25 +780,27 @@ const OBJ_NOTE = () => ({
   maintien: TT('Maintien : garde tes charges, la priorité est la forme sur le terrain.', 'Maintenance: keep your loads, the priority is being fit on the court.'),
   perte: TT('Perte de gras : repos courts et termine par 10 minutes de fractionné.', 'Fat loss: short rests and finish with 10 minutes of intervals.')
 });
-function openDay(i) {
-  const wd = weekday(new Date()), [d0, d1] = dayBounds(i), done = sessionsBetween(d0, d1);
-  const { plan, why } = smartPlan(), c = plan[i];
+function openDay(i, off = 0) {
+  const wdNow = weekday(new Date()), [d0, d1] = dayBounds(i, off), done = sessionsBetween(d0, d1);
+  const wd = off < 0 ? 7 : off > 0 ? -1 : wdNow;   // pour savoir si le jour est passé
+  const { plan, why } = smartPlan(off), c = plan[i];
+  const dayName = `${DAYS[i]} ${d0.getDate()} ${MONTHS[d0.getMonth()]}`;
   if (done.length === 1) return openSession(done[0].id);
   if (done.length > 1) {
-    const body = openSheet(`<h2 class="sheet__title">${DAYS[i]}</h2><div class="list">${done.map(h => `<button class="row" type="button" data-sess="${h.id}"><span class="tag" style="--sess:${(SESSIONS[h.code] || FREE_SESSION).color}">${h.code === 'L' ? '+' : h.code}</span><span class="row__main"><strong>${esc(h.name)}</strong><br><span class="muted small">${fmtTime(h.date)}, ${h.minutes} min</span></span>${ICON.right}</button>`).join('')}</div>`, { label: DAYS[i] });
+    const body = openSheet(`<h2 class="sheet__title">${dayName}</h2><div class="list">${done.map(h => `<button class="row" type="button" data-sess="${h.id}"><span class="tag" style="--sess:${(SESSIONS[h.code] || FREE_SESSION).color}">${h.code === 'L' ? '+' : h.code}</span><span class="row__main"><strong>${esc(h.name)}</strong><br><span class="muted small">${fmtTime(h.date)}, ${h.minutes} min</span></span>${ICON.right}</button>`).join('')}</div>`, { label: DAYS[i] });
     $$('[data-sess]', body).forEach(b => b.onclick = () => openSession(+b.dataset.sess));
     return;
   }
-  if (i < wd) return openSheet(`<h2 class="sheet__title">${DAYS[i]}</h2><p class="empty">${c === 'M' ? TT('Jour de match.', 'Match day.') : SESSIONS[c] ? TT(`Séance ${c} prévue, mais pas faite ce jour-là.`, `Session ${c} planned, but not done that day.`) : TT('Jour de repos.', 'Rest day.')}</p>`, { label: DAYS[i] });
-  if (c === 'M') return openSheet(`<h2 class="sheet__title">${DAYS[i]} : ${TT('match', 'match')} 🏐</h2><p class="muted">${TT('Pas de salle. Avant le match : 5 minutes de rotations d\'épaules et quelques sauts progressifs. Repas riche en glucides 3 heures avant.', 'No gym. Before the match: 5 minutes of shoulder rotations and a few progressive jumps. Carb-rich meal 3 hours before.')}</p>`, { label: 'Match' });
-  if (!SESSIONS[c]) return openSheet(`<h2 class="sheet__title">${DAYS[i]} : ${TT('repos', 'rest')}</h2><p class="muted">${TT('Les muscles se construisent pendant la récupération. Marche, étire-toi, dors bien.', 'Muscles are built during recovery. Walk, stretch, sleep well.')}</p>`, { label: DAYS[i] });
-  openPlanSheet(c, i, why[i] || []);
+  if (i < wd) return openSheet(`<h2 class="sheet__title">${dayName}</h2><p class="empty">${c === 'M' ? TT('Jour de match.', 'Match day.') : SESSIONS[c] ? TT(`Séance ${c} prévue, mais pas faite ce jour-là.`, `Session ${c} planned, but not done that day.`) : TT('Jour de repos.', 'Rest day.')}</p>`, { label: DAYS[i] });
+  if (c === 'M') return openSheet(`<h2 class="sheet__title">${dayName} : ${TT('match', 'match')} 🏐</h2><p class="muted">${TT('Pas de salle. Avant le match : 5 minutes de rotations d\'épaules et quelques sauts progressifs. Repas riche en glucides 3 heures avant.', 'No gym. Before the match: 5 minutes of shoulder rotations and a few progressive jumps. Carb-rich meal 3 hours before.')}</p>`, { label: 'Match' });
+  if (!SESSIONS[c]) return openSheet(`<h2 class="sheet__title">${dayName} : ${TT('repos', 'rest')}</h2><p class="muted">${TT('Les muscles se construisent pendant la récupération. Marche, étire-toi, dors bien.', 'Muscles are built during recovery. Walk, stretch, sleep well.')}</p>`, { label: DAYS[i] });
+  openPlanSheet(c, i, why[i] || [], off, dayName);
 }
-function openPlanSheet(code, i, reasons) {
-  const s = SESSIONS[code], wd = weekday(new Date()), items = buildItems(code), fit = fitSession(code);
+function openPlanSheet(code, i, reasons, off = 0, dayName = '') {
+  const s = SESSIONS[code], wd = off === 0 ? weekday(new Date()) : -1, items = buildItems(code), fit = fitSession(code);
   const obj = currentObjective();
   const body = openSheet(`
-    <p class="eyebrow">${i === wd ? TT('Aujourd\'hui', 'Today') : DAYS[i]}, ${TT('séance', 'session')} ${code}</p>
+    <p class="eyebrow">${i === wd ? TT('Aujourd\'hui', 'Today') : dayName || DAYS[i]}, ${TT('séance', 'session')} ${code}</p>
     <h2 class="sheet__title">${esc(s.name)}</h2>
     <p class="muted">${esc(s.goal)} ${TT(`Environ ${fit.minutes} min.`, `About ${fit.minutes} min.`)}</p>
     ${reasons.length ? `<div class="rv-block rv-next"><h4>${TT('Pourquoi cette séance', 'Why this session')}</h4><ul>${reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
@@ -810,7 +820,7 @@ function openPlanSheet(code, i, reasons) {
   `, { label: s.name });
   $$('[data-info]', body).forEach(b => b.onclick = () => openExercise(b.dataset.info));
   $('[data-start]', body)?.addEventListener('click', () => { closeSheet(); startSession(code); });
-  $('[data-reroll]', body)?.addEventListener('click', () => { rerollSession(code); closeSheet(); openPlanSheet(code, i, reasons); });
+  $('[data-reroll]', body)?.addEventListener('click', () => { rerollSession(code); closeSheet(); openPlanSheet(code, i, reasons, off, dayName); });
 }
 
 function coachHTML(planned) {
@@ -828,18 +838,59 @@ function coachHTML(planned) {
 /* ================= Aujourd'hui ================= */
 const NET = '<div class="court__net" aria-hidden="true"></div>';
 
-function weekStrip(plan, today) {
-  const ws = weekStart(new Date());
+function weekStrip(plan, today, off = 0) {
+  const ws = weekStart(new Date()); ws.setDate(ws.getDate() + 7 * off);
   return `<ol class="week">${plan.map((c, i) => {
     const s = SESSIONS[c];
     const d = new Date(ws); d.setDate(d.getDate() + i);
     const e = new Date(d); e.setDate(e.getDate() + 1);
-    const done = sessionsBetween(d, e).length > 0;
+    const dayDone = sessionsBetween(d, e), done = dayDone.length > 0;
+    const past = off < 0 || (off === 0 && i < today);
     return `<li class="week__day ${i === today ? 'is-today' : ''}">
       <span class="week__name" aria-hidden="true">${DAYS_SHORT[i]}</span>
-      <button class="week__code ${done ? 'is-done' : ''}" type="button" data-wday="${i}" ${s ? `style="--sess:${s.color}"` : ''} aria-label="${DAYS[i]} : ${done ? TT('séance faite, voir le détail', 'session done, see details') : c === 'M' ? 'match' : s ? `${TT('séance', 'session')} ${c}, ${esc(s.name)}` : TT('repos', 'rest')}">${done ? ICON.check : c === 'M' ? '🏐' : c || '·'}</button>
+      <span class="week__date">${d.getDate()}</span>
+      <button class="week__code ${done ? 'is-done' : ''}${past && !done ? ' is-past' : ''}" type="button" data-wday="${i}" ${s ? `style="--sess:${s.color}"` : ''} aria-label="${DAYS[i]} : ${done ? TT('séance faite, voir le détail', 'session done, see details') : c === 'M' ? 'match' : s ? `${TT('séance', 'session')} ${c}, ${esc(s.name)}` : TT('repos', 'rest')}">${done ? ICON.check : c === 'M' ? '🏐' : c || '·'}</button>
     </li>`;
   }).join('')}</ol>`;
+}
+
+let weekOff = 0;
+const WEEK_MIN = -26, WEEK_MAX = 2;
+function weekPanelHTML(off) {
+  const ws = weekStart(new Date()); ws.setDate(ws.getDate() + 7 * off);
+  const we = new Date(ws); we.setDate(we.getDate() + 6);
+  const plan = off === 0 ? smartPlan(0).plan : smartPlan(off).plan;
+  const wd = weekday(new Date());
+  const goal = weeklyGoal(), done = weekCount(ws);
+  const title = off === 0 ? TT('Ta semaine', 'Your week') : off === -1 ? TT('Semaine dernière', 'Last week') : off === 1 ? TT('Semaine prochaine', 'Next week') : TT(`Semaine du ${ws.getDate()} ${MONTHS[ws.getMonth()]}`, `Week of ${MONTHS[ws.getMonth()]} ${ws.getDate()}`);
+  const MS = window.LANG === 'en' ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] : ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const range = `${ws.getDate()} ${MS[ws.getMonth()]} – ${we.getDate()} ${MS[we.getMonth()]}`;
+  return `
+      <div class="week-nav">
+        <button class="icon-btn" type="button" data-wk="-1" aria-label="${TT('Semaine précédente', 'Previous week')}" ${off <= WEEK_MIN ? 'disabled' : ''}>${ICON.left}</button>
+        <div class="week-nav__t"><h2>${title}</h2><span class="muted small">${range}${off > 0 ? '' : ` · ${done} ${TT('sur', 'of')} ${goal}`}</span></div>
+        <button class="icon-btn" type="button" data-wk="1" aria-label="${TT('Semaine suivante', 'Next week')}" ${off >= WEEK_MAX ? 'disabled' : ''}>${ICON.right}</button>
+      </div>
+      ${off > 0 ? '' : `<div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>`}
+      <div class="week-swipe">${weekStrip(plan, off === 0 ? wd : off < 0 ? 7 : -1, off)}</div>
+      ${off !== 0 ? `<button class="link-btn week-back" type="button" data-wk="0">${TT('Revenir à cette semaine', 'Back to this week')}</button>` : ''}
+      <p class="legend">${off > 0 ? TT('Plan prévu par le coach, ajusté au fil de tes séances. ', 'Plan suggested by the coach, adjusted as you train. ') : ''}${Object.entries(SESSIONS).map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>`;
+}
+function bindWeekPanel(root) {
+  const panel = $('#week-panel', root); if (!panel) return;
+  const go = d => { const n = d === 0 ? 0 : Math.max(WEEK_MIN, Math.min(WEEK_MAX, weekOff + d)); if (n === weekOff) return; weekOff = n; panel.innerHTML = weekPanelHTML(weekOff); panel.classList.remove('slide-l', 'slide-r'); void panel.offsetWidth; panel.classList.add(d < 0 ? 'slide-r' : 'slide-l'); bind(); };
+  const bind = () => {
+    $$('[data-wk]', panel).forEach(b => b.onclick = () => go(+b.dataset.wk === 0 ? 0 : +b.dataset.wk));
+    $$('[data-wday]', panel).forEach(b => b.onclick = () => openDay(+b.dataset.wday, weekOff));
+  };
+  let x0 = null, y0 = null;
+  panel.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+  panel.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
+  }, { passive: true });
+  bind();
 }
 
 function renderToday() {
@@ -892,12 +943,7 @@ function renderToday() {
     ${hero}
     ${coachHTML(code)}
     ${isDeload() ? '<p class="callout">Semaine 4 du cycle : semaine allégée. Une série de moins par exercice pour bien récupérer.</p>' : ''}
-    <section class="panel">
-      <div class="panel__head"><h2>Ta semaine</h2><span class="muted small">${done} sur ${goal}</span></div>
-      <div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>
-      ${weekStrip(plan, wd)}
-      <p class="legend">${Object.entries(SESSIONS).map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>
-    </section>
+    <section class="panel" id="week-panel">${weekPanelHTML(weekOff)}</section>
     <section class="stats3">
       <div class="stat"><p class="stat__value">${st}</p><p class="stat__label">${st > 1 ? 'semaines' : 'semaine'} d'affilée à l'objectif</p></div>
       <div class="stat"><p class="stat__value">${month.length}</p><p class="stat__label">${month.length > 1 ? 'séances' : 'séance'} en ${MONTHS[now.getMonth()]}</p></div>
@@ -918,7 +964,7 @@ function renderToday() {
   $$('[data-session]', el).forEach(b => b.addEventListener('click', () => openSession(b.dataset.session)));
   $$('[data-reroll]', el).forEach(b => b.addEventListener('click', () => rerollSession(b.dataset.reroll)));
   $$('[data-complete-id]', el).forEach(b => b.addEventListener('click', openIdentitySheet));
-  $$('[data-wday]', el).forEach(b => b.addEventListener('click', () => openDay(+b.dataset.wday)));
+  bindWeekPanel(el);
   $('#free-machine', el)?.addEventListener('click', openMachineSearch);
 }
 
@@ -2785,7 +2831,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '39';
+const APP_VERSION = '40';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
