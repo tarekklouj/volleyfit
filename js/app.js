@@ -235,9 +235,11 @@ function fitSession(code, warmMin = warmMinFor(code), light = false) {
 }
 const FREE_SESSION = { name: 'Séance libre', color: '#E8431A', warmup: 'tapis', goal: 'Exercices choisis par toi.', warmNote: 'Échauffe-toi 5 à 10 minutes avant de commencer.', items: [] };
 const sessionOf = code => SESSIONS[code] || FREE_SESSION;
-const isFull = () => state.profile.programType === 'full';
+const isFull = () => false;
+const FULL_CODES = ['F1', 'F2', 'F3'];
 const GYM_CODES = () => isFull() ? ['F1', 'F2', 'F3'] : ['A', 'B', 'C'];
-const visibleCode = k => isFull() ? !['A', 'B', 'C'].includes(k) : !TEMPLATE[k]?.full;
+const visibleCode = k => !!SESSIONS[k];
+const planCodes = () => Object.entries(SESSIONS).filter(([k]) => !TEMPLATE[k]?.full);
 const visibleSessions = () => Object.entries(SESSIONS).filter(([k]) => visibleCode(k));
 const estimateMinutes = s => fitSession(Object.keys(SESSIONS).find(k => SESSIONS[k] === s)).minutes;
 function targetText(it) {
@@ -700,13 +702,13 @@ function sessionCats(code) {
   for (const c in w) w[c] /= tot || 1;
   return w;
 }
-function smartNext({ at = new Date(), extra = null, virtual = [], gym = false, planned = null } = {}) {
+function smartNext({ at = new Date(), extra = null, virtual = [], gym = false, planned = null, full = false } = {}) {
   const L = trainingLoad(+at, extra, virtual), p = state.profile, wd = weekday(at), lab = CAT_LABEL();
   const m = p.matchDay, hasM = m !== null && m !== undefined;
   const matchToday = hasM && m === wd, matchTomorrow = hasM && (m + 6) % 7 === wd, matchYesterday = hasM && (m + 1) % 7 === wd;
   const recent3 = L.sessions.filter(t => +at - t < 3 * 864e5).length;
   const lastHard = state.history.find(h => +at - +new Date(h.date) < 30 * 36e5 && num(h.rpe) >= 9);
-  const cands = GYM_CODES().concat(SESSIONS.H && !gym ? ['H'] : []).filter(c => isFull() || !(matchTomorrow && (c === 'A' || c === 'C')));
+  const cands = full ? [...FULL_CODES] : GYM_CODES().concat(SESSIONS.H && !gym ? ['H'] : []).filter(c => !(matchTomorrow && (c === 'A' || c === 'C')));
   const lastCode = c => { const h = state.history.find(x => x.code === c); const v = virtual.filter(x => x.code === c).map(x => x.t); const t = Math.max(h ? +new Date(h.date) : 0, ...v, 0); return t ? (+at - t) / 36e5 : 999; };
   const obj = currentObjective();
   const scored = cands.map(code => {
@@ -730,7 +732,7 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false, p
   if (matchToday) return { code: null, reasons: [TT('Jour de match : pas de salle aujourd\'hui. Échauffe bien tes épaules avant le match.', 'Match day: no gym today. Warm up your shoulders well before the match.')] };
   let best = scored[0];
   const recoverScore = (matchYesterday ? 3 : 0) + (recent3 >= 3 ? 2 : 0) + (lastHard ? 1.5 : 0) + (best.sc < 0 ? 2 : 0);
-  if (recoverScore >= 2 || (SESSIONS.R && best.sc < -0.5)) {
+  if (!full && (recoverScore >= 2 || (SESSIONS.R && best.sc < -0.5))) {
     if (matchYesterday) reasons.push(TT('Match hier : place à la récupération.', 'Match yesterday: time to recover.'));
     if (recent3 >= 3) reasons.push(TT(`${recent3} séances sur les 3 derniers jours : ton corps a besoin de souffler.`, `${recent3} sessions in the last 3 days: your body needs a break.`));
     if (lastHard) reasons.push(TT('Ta dernière séance était très dure (effort 9 ou 10).', 'Your last session was very hard (effort 9 or 10).'));
@@ -746,7 +748,7 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false, p
   const own = new Set(best.why.map(x => x.c));
   const tired = Object.keys(CAT).filter(c => c !== 'cuff' && !own.has(c) && L.hours[c] < REST_H[c]);
   if (tired.length) reasons.push(TT(`On laisse récupérer : ${tired.map(c => lab[c]).join(', ')} (travaillé${tired.length > 1 ? 's' : ''} il y a moins de ${Math.max(...tired.map(c => REST_H[c]))} h).`, `Letting these recover: ${tired.map(c => lab[c]).join(', ')} (worked less than ${Math.max(...tired.map(c => REST_H[c]))} h ago).`));
-  if (matchTomorrow) reasons.push(isFull() ? TT('Match demain : jambes allégées automatiquement (2 séries maximum, pas d\'explosivité).', 'Match tomorrow: legs automatically lighter (2 sets max, no explosive work).') : TT('Match demain : pas de jambes lourdes aujourd\'hui.', 'Match tomorrow: no heavy legs today.'));
+  if (matchTomorrow) reasons.push(full ? TT('Match demain : jambes allégées automatiquement (2 séries maximum, pas d\'explosivité).', 'Match tomorrow: legs automatically lighter (2 sets max, no explosive work).') : TT('Match demain : pas de jambes lourdes aujourd\'hui.', 'Match tomorrow: no heavy legs today.'));
   const low = Object.keys(WEEK_TARGET).filter(c => (L.week[c] || 0) < WEEK_TARGET[c] / 3 && sessionCats(best.code)[c] > .2);
   if (low.length && !best.why.length) reasons.push(TT(`Peu travaillé cette semaine : ${low.map(c => lab[c]).join(', ')}.`, `Little work this week: ${low.map(c => lab[c]).join(', ')}.`));
   if (!reasons.length) reasons.push(TT('La séance la plus équilibrée par rapport à ta semaine.', 'The most balanced session for your week.'));
@@ -830,6 +832,19 @@ function openPlanSheet(code, i, reasons, off = 0, dayName = '') {
   $('[data-reroll]', body)?.addEventListener('click', () => { rerollSession(code); closeSheet(); openPlanSheet(code, i, reasons, off, dayName); });
 }
 
+function fullAltHTML(main) {
+  if (main === 'R') return '';
+  const f = smartNext({ full: true });
+  if (!f.code || !SESSIONS[f.code]) return '';
+  const s = SESSIONS[f.code], why = f.reasons.filter(x => !/^On laisse|^Letting/.test(x)).slice(0, 2);
+  return `<div class="coach__alt" style="--sess:${s.color}">
+      <p class="coach__alt-t">${TT('Ou en full body, tout le corps', 'Or full body, whole body')}</p>
+      <div class="coach__pick"><span class="tag">${f.code}</span><strong>${esc(s.name)}</strong></div>
+      <p class="muted small">${esc(s.goal)}${why.length ? ' ' + why.map(esc).join(' ') : ''}</p>
+      <div class="btn-row"><button class="btn btn--ghost btn--sm" type="button" data-full-plan="${f.code}">${TT('Voir le plan', 'See the plan')}</button><button class="btn btn--sm" type="button" data-start="${f.code}" style="background:${s.color}">${ICON.play} ${TT('Faire', 'Do')} ${f.code}</button></div>
+    </div>`;
+}
+
 function coachHTML(planned) {
   const r = smartNext();
   if (r.code && !visibleCode(r.code)) r.code = GYM_CODES()[0];
@@ -840,6 +855,7 @@ function coachHTML(planned) {
     <div class="coach__pick"><span class="tag">${r.code}</span><strong>${esc(s.name)}</strong>${same ? `<span class="coach__ok">${ICON.check} ${TT('c\'est aussi ta séance prévue', 'also your planned session')}</span>` : ''}</div>
     <ul class="coach__why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
     ${same ? '' : `<button class="btn btn--block" type="button" data-start="${r.code}" style="background:${s.color}">${ICON.play} ${TT('Faire la séance', 'Do session')} ${r.code}</button>`}
+    ${fullAltHTML(r.code)}
   </section>`;
 }
 
@@ -882,7 +898,7 @@ function weekPanelHTML(off) {
       ${off > 0 ? '' : `<div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>`}
       <div class="week-swipe">${weekStrip(plan, off === 0 ? wd : off < 0 ? 7 : -1, off)}</div>
       ${off !== 0 ? `<button class="link-btn week-back" type="button" data-wk="0">${TT('Revenir à cette semaine', 'Back to this week')}</button>` : ''}
-      <p class="legend">${off > 0 ? TT('Plan prévu par le coach, ajusté au fil de tes séances. ', 'Plan suggested by the coach, adjusted as you train. ') : ''}${visibleSessions().map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>`;
+      <p class="legend">${off > 0 ? TT('Plan prévu par le coach, ajusté au fil de tes séances. ', 'Plan suggested by the coach, adjusted as you train. ') : ''}${planCodes().map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>`;
 }
 function bindWeekPanel(root) {
   const panel = $('#week-panel', root); if (!panel) return;
@@ -960,12 +976,15 @@ function renderToday() {
     ${weekMusclesHTML()}
     ${last ? `<button class="panel last" type="button" data-session="${last.id}">
       <span class="tag" style="--sess:${sessionOf(last.code).color}">${esc(last.code)}</span>
-      <span><strong>Dernière séance : ${esc(last.name)}</strong><br><span class="muted small">${fmtDate(last.date)}, ${last.minutes} min, ${fmtVolume(last.volume || 0)}${last.prs?.length ? `, ${plural(last.prs.length, 'record')}` : ''}</span></span>
+      <span><strong>Dernière séance : ${esc(last.name)}</strong><br><span class="muted small">${fmtDate(last.date)}${last.minutes ? `, ${last.minutes} min` : ''}${last.volume ? `, ${fmtVolume(last.volume)}` : ''}${last.prs?.length ? `, ${plural(last.prs.length, 'record')}` : ''}</span></span>
     </button>` : ''}
     <section class="panel">
       <h2>Faire une autre séance</h2>
       <button class="free-cta" type="button" id="free-machine">${ICON.search}<span><strong>Séance libre</strong><br><span class="small">Tape le nom d'une machine, l'app te donne l'exercice</span></span></button>
-      <div class="sess-grid">${visibleSessions().map(([k, s]) =>
+      <div class="sess-grid">${planCodes().map(([k, s]) =>
+        `<button class="sess-btn" style="--sess:${s.color}" data-start="${k}" type="button"><b>${k}</b><span>${esc(s.name)}</span></button>`).join('')}</div>
+      <h3 class="sub sub--full">Full body <span class="muted small">${TT('tout le corps en une séance', 'whole body in one session')}</span></h3>
+      <div class="sess-grid">${Object.entries(SESSIONS).filter(([k]) => TEMPLATE[k]?.full).map(([k, s]) =>
         `<button class="sess-btn" style="--sess:${s.color}" data-start="${k}" type="button"><b>${k}</b><span>${esc(s.name)}</span></button>`).join('')}</div>
     </section>`;
   $$('[data-start]', el).forEach(b => b.addEventListener('click', () => startSession(b.dataset.start)));
@@ -973,6 +992,7 @@ function renderToday() {
   $$('[data-reroll]', el).forEach(b => b.addEventListener('click', () => rerollSession(b.dataset.reroll)));
   $$('[data-complete-id]', el).forEach(b => b.addEventListener('click', openIdentitySheet));
   bindWeekPanel(el);
+  $$('[data-full-plan]', el).forEach(b => b.onclick = () => { const f = smartNext({ full: true }); openPlanSheet(b.dataset.fullPlan, weekday(new Date()), f.reasons, 0); });
   $('#free-machine', el)?.addEventListener('click', openMachineSearch);
 }
 
@@ -2160,7 +2180,7 @@ function renderHistory(el) {
         <button class="icon-btn" type="button" data-cal="1" aria-label="Mois suivant" ${calOffset >= 0 ? 'disabled' : ''}>${ICON.right}</button>
       </div>
       <div class="cal">${DAYS_SHORT.map(d => `<span class="cal__dow">${d}</span>`).join('')}${cells.join('')}</div>
-      <p class="muted small">${plural(monthSessions.length, 'séance')}, ${monthSessions.reduce((t, h) => t + h.minutes, 0)} min, ${fmtVolume(monthSessions.reduce((t, h) => t + (h.volume || 0), 0))} soulevés.</p>
+      <p class="muted small">${plural(monthSessions.length, 'séance')}, ${monthSessions.reduce((t, h) => t + (h.minutes || 0), 0)} min, ${fmtVolume(monthSessions.reduce((t, h) => t + (h.volume || 0), 0))} soulevés.</p>
     </section>
     ${hrHistoryHTML()}
     <section class="panel">
@@ -2314,13 +2334,6 @@ function renderProfile() {
     </section>
 
     <section class="panel form">
-      <h2>${TT('Type de programme', 'Programme type')}</h2>
-      <div class="goal-pick goal-pick--2">${[['split', TT('Séparé', 'Split'), TT('A jambes, B haut du corps, C puissance et gainage. Plus de volume par groupe à chaque séance.', 'A legs, B upper body, C power and core. More volume per group each session.')], ['full', 'Full body', TT('F1, F2, F3 : tout le corps à chaque séance, chaque muscle 3 fois par semaine. Idéal en saison.', 'F1, F2, F3: whole body every session, each muscle 3 times a week. Ideal in season.')]].map(([k, l, d]) => `
-        <button type="button" class="goal-opt" data-ptype="${k}" aria-pressed="${(p.programType || 'split') === k}"><strong>${l}</strong><span>${d}</span></button>`).join('')}</div>
-      <p class="muted small">${TT('Tu peux changer quand tu veux : ton historique et tes charges restent.', 'You can switch anytime: your history and loads are kept.')}</p>
-    </section>
-
-    <section class="panel form">
       <h2>Langue</h2>
       <div class="seg" role="group" aria-label="Langue">${[['fr', 'Français'], ['en', 'English']].map(([k, l]) => `<button type="button" data-lang="${k}" aria-pressed="${(p.lang || 'fr') === k}" lang="${k}">${l}</button>`).join('')}</div>
     </section>
@@ -2391,13 +2404,6 @@ function renderProfile() {
     p.variety = b.dataset.variety; resolveSessions(); save();
     $$('[data-variety]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     toast(`Variété : ${VARIETY[p.variety].label.toLowerCase()}.`);
-  });
-  $$('[data-ptype]', el).forEach(b => b.onclick = () => {
-    if ((p.programType || 'split') === b.dataset.ptype) return;
-    p.programType = b.dataset.ptype; save();
-    for (const k in PLAN_CACHE) delete PLAN_CACHE[k];
-    renderProfile();
-    toast(p.programType === 'full' ? TT('Programme full body : séances F1, F2, F3.', 'Full body programme: sessions F1, F2, F3.') : TT('Programme séparé : séances A, B, C.', 'Split programme: sessions A, B, C.'));
   });
   $$('[data-lang]', el).forEach(b => b.onclick = () => {
     if ((p.lang || 'fr') === b.dataset.lang) return;
@@ -2857,7 +2863,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '41';
+const APP_VERSION = '42';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

@@ -841,3 +841,9 @@ button.week__code.is-past:not(.is-done) { opacity: .4; }
 .tag, .week__code, .sess-btn .tag { letter-spacing: -.02em; }
 button.week__code { font-size: .98rem; }
 .lighter { color: var(--ball); font-weight: 600; }
+
+/* v42 : full body en option */
+.coach__alt { margin-top: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); border-left: 4px solid var(--sess); display: grid; gap: 6px; }
+.coach__alt-t { margin: 0; font-weight: 700; font-size: .9rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.coach__alt .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.sub--full { margin-top: 14px; }
