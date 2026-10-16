@@ -1435,7 +1435,6 @@ function tick() {
     $('#timer').classList.add('is-done');
     $('#timer-label').textContent = 'Terminé, c\'est reparti';
     if (state.profile.sound) beep();
-    if (state.profile.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200]);
     const cb = timer.onDone; timer = null;
     focusTick(0, 1, true);
     if (cb) cb();
@@ -2174,7 +2173,6 @@ function renderProfile() {
       <h2>Chrono de repos</h2>
       <p class="muted small">${TT('L\'écran reste allumé pendant toute la séance, sauf si tu verrouilles le téléphone.', 'The screen stays on for the whole session, unless you lock your phone.')}</p>
       <label class="switch"><input type="checkbox" id="p-sound" ${p.sound ? 'checked' : ''}><span>Bip à la fin du repos</span></label>
-      <label class="switch"><input type="checkbox" id="p-vib" ${p.vibrate ? 'checked' : ''}><span>Vibration (Android)</span></label>
       <div class="field"><span>${TT('Minuteur iPhone sur l\'écran verrouillé', 'iPhone timer on the lock screen')}</span>
         <div class="seg" role="group" aria-label="${TT('Minuteur iPhone', 'iPhone timer')}">${[['off', TT('Désactivé', 'Off')], ['button', TT('Bouton', 'Button')], ['auto', TT('Automatique', 'Automatic')]].map(([k, l]) => `<button type="button" data-ios="${k}" aria-pressed="${p.iosTimer === k}">${l}</button>`).join('')}</div>
       </div>
@@ -2205,7 +2203,6 @@ function renderProfile() {
   $('#p-gw').oninput = e => { p.goalWeight = num(e.target.value) ?? ''; save(); };
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
-  $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
   $$('[data-ios]', el).forEach(b => b.onclick = () => {
     p.iosTimer = b.dataset.ios; save();
     $$('[data-ios]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -2688,7 +2685,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '36';
+const APP_VERSION = '37';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
