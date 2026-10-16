@@ -906,7 +906,6 @@ const MACHINE_NAMES = {
   "borstpers",
   "borst",
   "bench press machine",
-  "incline chest press",
   "Machine chest press",
   "vertical chest press",
   "iso lateral chest press",

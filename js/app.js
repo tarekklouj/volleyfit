@@ -389,7 +389,7 @@ function doExercise(id) {
 
 /* ================= Recherche par nom de machine (FR, EN, NL) =================
    « Diverging lat pulldown », « Beenpers », « converging chest press »… → exercice. */
-const MSTOP = new Set(['machine', 'machines', 'de', 'la', 'le', 'les', 'a', 'au', 'du', 'des', 'the', 'seated', 'assis', 'zittend', 'toestel', 'apparaat',
+const MSTOP = new Set(['machine', 'machines', 'de', 'la', 'le', 'les', 'a', 'au', 'du', 'des', 'the', 'toestel', 'apparaat',
   'matrix', 'technogym', 'life', 'fitness', 'hammer', 'strength', 'basic', 'fit', 'pro', 'station', 'van', 'het', 'een', 'met', 'voor']);
 const mnorm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w && !MSTOP.has(w)).map(w => w.length > 4 ? w.replace(/s$/, '') : w);
 let MIDX = null;
