@@ -27,6 +27,7 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Rien ne se perd** : séance oubliée enregistrée automatiquement 3 h après la dernière série, rappel quand toutes les séries sont faites, et proposition d'enregistrer au lieu d'annuler quand des séries sont validées.
 - **Navigation entre semaines** : flèches ou glisser du doigt sur « Ta semaine » pour voir les semaines passées (6 mois) et les 2 semaines à venir (plan du coach).
 - **Semaine cliquable** : un jour fait ouvre son historique, un jour à venir ouvre le plan de la séance choisie par le coach (raisons, objectif, exercices et charges).
+- **Programme full body** au choix dans Profil (F1, F2, F3 : tout le corps à chaque séance, chaque muscle 3 fois par semaine, abdos inclus), rotation automatique, jambes allégées la veille d'un match. Le programme séparé (A, B, C) reste disponible.
 - **Coach de séance** : propose la séance suivante selon ce qui a vraiment été travaillé (séances libres comprises), le temps de récupération de chaque groupe (jambes 60 h, haut du corps 48 h, abdos 24 h), l'équilibre de la semaine, les matchs et la fatigue.
 - **Bilan de séance** automatique : résumé, muscles touchés, ce qui est bien, ce qu'il faut ajouter, ce qu'il faut faire la prochaine fois et charges gardées.
 - **Même charge par défaut** : l'app reprend la charge de la dernière fois ; la progression est proposée en un tap.

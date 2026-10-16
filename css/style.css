@@ -836,3 +836,8 @@ button.week__code.is-past:not(.is-done) { opacity: .4; }
 @keyframes wkL { from { transform: translateX(30px); opacity: .3; } to { transform: none; opacity: 1; } }
 @keyframes wkR { from { transform: translateX(-30px); opacity: .3; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #week-panel .week-swipe { animation: none !important; } }
+
+/* v41 : codes de séance à 2 caractères */
+.tag, .week__code, .sess-btn .tag { letter-spacing: -.02em; }
+button.week__code { font-size: .98rem; }
+.lighter { color: var(--ball); font-weight: 600; }

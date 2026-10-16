@@ -65,7 +65,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
+    goalWeight: '', goalFat: '', sound: true, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr', programType: 'split'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
   nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
@@ -179,11 +179,12 @@ function planWeek(p = state.profile) {
   const plan = Array(7).fill(null);
   const m = p.matchDay, hasMatch = m !== null && m !== undefined;
   if (hasMatch) plan[m] = 'M';
-  const queue = ['A', 'B', 'C', 'A', 'B', 'C', 'A'];
+  const g = GYM_CODES(), queue = [...g, ...g, g[0]];
   [...p.gymDays].sort((a, b) => a - b).forEach(d => {
     if (plan[d] === 'M') return;
     if (hasMatch && d === (m + 1) % 7) { plan[d] = 'R'; return; }
     if (hasMatch && d === (m + 6) % 7) {
+      if (isFull()) { plan[d] = queue.shift(); return; }
       const i = queue.slice(0, 3).indexOf('B');
       plan[d] = i >= 0 ? queue.splice(i, 1)[0] : 'R';
       return;
@@ -234,6 +235,10 @@ function fitSession(code, warmMin = warmMinFor(code), light = false) {
 }
 const FREE_SESSION = { name: 'Séance libre', color: '#E8431A', warmup: 'tapis', goal: 'Exercices choisis par toi.', warmNote: 'Échauffe-toi 5 à 10 minutes avant de commencer.', items: [] };
 const sessionOf = code => SESSIONS[code] || FREE_SESSION;
+const isFull = () => state.profile.programType === 'full';
+const GYM_CODES = () => isFull() ? ['F1', 'F2', 'F3'] : ['A', 'B', 'C'];
+const visibleCode = k => isFull() ? !['A', 'B', 'C'].includes(k) : !TEMPLATE[k]?.full;
+const visibleSessions = () => Object.entries(SESSIONS).filter(([k]) => visibleCode(k));
 const estimateMinutes = s => fitSession(Object.keys(SESSIONS).find(k => SESSIONS[k] === s)).minutes;
 function targetText(it) {
   if (it.kind === 'warmup' || it.kind === 'time' || it.duration) return `${it.minutes ?? it.duration} min`;
@@ -695,13 +700,14 @@ function sessionCats(code) {
   for (const c in w) w[c] /= tot || 1;
   return w;
 }
-function smartNext({ at = new Date(), extra = null, virtual = [], gym = false } = {}) {
+function smartNext({ at = new Date(), extra = null, virtual = [], gym = false, planned = null } = {}) {
   const L = trainingLoad(+at, extra, virtual), p = state.profile, wd = weekday(at), lab = CAT_LABEL();
   const m = p.matchDay, hasM = m !== null && m !== undefined;
   const matchToday = hasM && m === wd, matchTomorrow = hasM && (m + 6) % 7 === wd, matchYesterday = hasM && (m + 1) % 7 === wd;
   const recent3 = L.sessions.filter(t => +at - t < 3 * 864e5).length;
   const lastHard = state.history.find(h => +at - +new Date(h.date) < 30 * 36e5 && num(h.rpe) >= 9);
-  const cands = ['A', 'B', 'C'].concat(SESSIONS.H && !gym ? ['H'] : []).filter(c => !(matchTomorrow && (c === 'A' || c === 'C')));
+  const cands = GYM_CODES().concat(SESSIONS.H && !gym ? ['H'] : []).filter(c => isFull() || !(matchTomorrow && (c === 'A' || c === 'C')));
+  const lastCode = c => { const h = state.history.find(x => x.code === c); const v = virtual.filter(x => x.code === c).map(x => x.t); const t = Math.max(h ? +new Date(h.date) : 0, ...v, 0); return t ? (+at - t) / 36e5 : 999; };
   const obj = currentObjective();
   const scored = cands.map(code => {
     const w = sessionCats(code); let sc = 0; const why = [];
@@ -714,6 +720,7 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false } 
     if (matchTomorrow && code === 'A') sc -= 3;
     if (matchTomorrow && code === 'C') sc -= 1;
     if (code === 'H') sc -= .4;
+    if (TEMPLATE[code]?.full) sc += Math.min(lastCode(code), 240) / 160 + (planned === code ? .3 : 0); // full body : on fait tourner F1, F2, F3
     if (obj === 'perte' && code === 'C') sc += .4;   // perte de gras : la séance avec fractionné
     if (obj === 'muscle' && code === 'B') sc += .15; // prise de muscle : un peu plus de volume haut du corps
     return { code, sc, why };
@@ -739,7 +746,7 @@ function smartNext({ at = new Date(), extra = null, virtual = [], gym = false } 
   const own = new Set(best.why.map(x => x.c));
   const tired = Object.keys(CAT).filter(c => c !== 'cuff' && !own.has(c) && L.hours[c] < REST_H[c]);
   if (tired.length) reasons.push(TT(`On laisse récupérer : ${tired.map(c => lab[c]).join(', ')} (travaillé${tired.length > 1 ? 's' : ''} il y a moins de ${Math.max(...tired.map(c => REST_H[c]))} h).`, `Letting these recover: ${tired.map(c => lab[c]).join(', ')} (worked less than ${Math.max(...tired.map(c => REST_H[c]))} h ago).`));
-  if (matchTomorrow) reasons.push(TT('Match demain : pas de jambes lourdes aujourd\'hui.', 'Match tomorrow: no heavy legs today.'));
+  if (matchTomorrow) reasons.push(isFull() ? TT('Match demain : jambes allégées automatiquement (2 séries maximum, pas d\'explosivité).', 'Match tomorrow: legs automatically lighter (2 sets max, no explosive work).') : TT('Match demain : pas de jambes lourdes aujourd\'hui.', 'Match tomorrow: no heavy legs today.'));
   const low = Object.keys(WEEK_TARGET).filter(c => (L.week[c] || 0) < WEEK_TARGET[c] / 3 && sessionCats(best.code)[c] > .2);
   if (low.length && !best.why.length) reasons.push(TT(`Peu travaillé cette semaine : ${low.map(c => lab[c]).join(', ')}.`, `Little work this week: ${low.map(c => lab[c]).join(', ')}.`));
   if (!reasons.length) reasons.push(TT('La séance la plus équilibrée par rapport à ta semaine.', 'The most balanced session for your week.'));
@@ -760,14 +767,14 @@ function smartPlan(off = 0) {
     const plan = [...base], why = {};
     for (let i = w === 0 ? wd : 0; i < 7; i++) {
       const c = base[i];
-      if (!['A', 'B', 'C'].includes(c)) continue;
+      if (!GYM_CODES().includes(c)) continue;
       const [d0, d1] = dayBounds(i, w);
       if (sessionsBetween(d0, d1).length) continue;
       const at = new Date(d0); at.setHours(w === 0 && i === wd ? Math.max(new Date().getHours(), 8) : 18, 0, 0, 0);
-      const r = smartNext({ at, virtual, gym: true });
+      const r = smartNext({ at, virtual, gym: true, planned: c });
       if (r.code && SESSIONS[r.code]) {
         plan[i] = r.code; why[i] = r.reasons;
-        if (r.code !== 'R') virtual.push({ t: +at, items: virtualItems(r.code) });
+        if (r.code !== 'R') virtual.push({ t: +at, code: r.code, items: virtualItems(r.code) });
       }
     }
     out = { plan, why };
@@ -797,7 +804,7 @@ function openDay(i, off = 0) {
   openPlanSheet(c, i, why[i] || [], off, dayName);
 }
 function openPlanSheet(code, i, reasons, off = 0, dayName = '') {
-  const s = SESSIONS[code], wd = off === 0 ? weekday(new Date()) : -1, items = buildItems(code), fit = fitSession(code);
+  const s = SESSIONS[code], wd = off === 0 ? weekday(new Date()) : -1, items = buildItems(code, false, dayBounds(i, off)[0]), fit = fitSession(code);
   const obj = currentObjective();
   const body = openSheet(`
     <p class="eyebrow">${i === wd ? TT('Aujourd\'hui', 'Today') : dayName || DAYS[i]}, ${TT('séance', 'session')} ${code}</p>
@@ -811,7 +818,7 @@ function openPlanSheet(code, i, reasons, off = 0, dayName = '') {
       const sug = suggestFor(it);
       const what = it.kind === 'warmup' ? TT(`Échauffement, ${it.minutes} min`, `Warm-up, ${it.minutes} min`) : it.kind === 'time' ? `${it.minutes} min` : it.kind === 'hold' ? `${it.sets.length} × ${it.hold} s` : `${it.sets.length} × ${it.reps}`;
       return `<button class="row" type="button" data-info="${it.ex}">${exThumb(it.ex, 'thumb--sm')}
-        <span class="row__main"><strong>${esc(e.name)}</strong><br><span class="muted small">${what}${it.rest ? `, ${TT('repos', 'rest')} ${fmtRest(it.rest)}` : ''}</span></span>
+        <span class="row__main"><strong>${esc(e.name)}</strong><br><span class="muted small">${what}${it.rest ? `, ${TT('repos', 'rest')} ${fmtRest(it.rest)}` : ''}${it.lighter ? ` · <span class="lighter">${TT('allégé, veille de match', 'lighter, day before match')}</span>` : ''}</span></span>
         ${sug ? `<span class="row__value">${fmtKg(sug.kg)} kg</span>` : ''}</button>`;
     }).join('')}</div>
     <p class="muted small">${TT('Les charges affichées sont celles de ta dernière fois, ou une charge de départ pour un nouvel exercice.', 'Loads shown are those from last time, or a starting load for a new exercise.')}</p>
@@ -825,6 +832,7 @@ function openPlanSheet(code, i, reasons, off = 0, dayName = '') {
 
 function coachHTML(planned) {
   const r = smartNext();
+  if (r.code && !visibleCode(r.code)) r.code = GYM_CODES()[0];
   if (!r.code) return `<section class="panel coach"><div class="panel__head"><h2>${TT('Séance conseillée', 'Suggested session')}</h2></div><ul class="coach__why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>`;
   const s = SESSIONS[r.code], same = planned === r.code;
   return `<section class="panel coach" style="--sess:${s.color}">
@@ -874,7 +882,7 @@ function weekPanelHTML(off) {
       ${off > 0 ? '' : `<div class="goalbar" aria-hidden="true">${Array.from({ length: goal }, (_, i) => `<span class="${i < done ? 'on' : ''}"></span>`).join('')}</div>`}
       <div class="week-swipe">${weekStrip(plan, off === 0 ? wd : off < 0 ? 7 : -1, off)}</div>
       ${off !== 0 ? `<button class="link-btn week-back" type="button" data-wk="0">${TT('Revenir à cette semaine', 'Back to this week')}</button>` : ''}
-      <p class="legend">${off > 0 ? TT('Plan prévu par le coach, ajusté au fil de tes séances. ', 'Plan suggested by the coach, adjusted as you train. ') : ''}${Object.entries(SESSIONS).map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>`;
+      <p class="legend">${off > 0 ? TT('Plan prévu par le coach, ajusté au fil de tes séances. ', 'Plan suggested by the coach, adjusted as you train. ') : ''}${visibleSessions().map(([k, x]) => `${k} ${x.name.toLowerCase()}`).join(', ')}.</p>`;
 }
 function bindWeekPanel(root) {
   const panel = $('#week-panel', root); if (!panel) return;
@@ -957,7 +965,7 @@ function renderToday() {
     <section class="panel">
       <h2>Faire une autre séance</h2>
       <button class="free-cta" type="button" id="free-machine">${ICON.search}<span><strong>Séance libre</strong><br><span class="small">Tape le nom d'une machine, l'app te donne l'exercice</span></span></button>
-      <div class="sess-grid">${Object.entries(SESSIONS).map(([k, s]) =>
+      <div class="sess-grid">${visibleSessions().map(([k, s]) =>
         `<button class="sess-btn" style="--sess:${s.color}" data-start="${k}" type="button"><b>${k}</b><span>${esc(s.name)}</span></button>`).join('')}</div>
     </section>`;
   $$('[data-start]', el).forEach(b => b.addEventListener('click', () => startSession(b.dataset.start)));
@@ -969,16 +977,20 @@ function renderToday() {
 }
 
 /* ================= Séance en cours ================= */
-function buildItems(code, light = false) {
+function preMatchDay(d = new Date()) { const m = state.profile.matchDay; return m !== null && m !== undefined && (m + 6) % 7 === weekday(d); }
+function buildItems(code, light = false, day = new Date()) {
   const s = SESSIONS[code], p = state.profile, fit = fitSession(code, undefined, light);
+  const lighterLegs = TEMPLATE[code]?.full && preMatchDay(day);
   const items = [{ ex: warmupFor(code), kind: 'warmup', minutes: warmMinFor(code), home: isHome(code), sets: [{ done: false }] }];
   fit.plan.forEach(it => {
     const slot = it.slot;
     const exId = EX[state.swaps[swapKey(code, slot)]] ? state.swaps[swapKey(code, slot)] : it.ex;
     if (it.duration) { items.push({ ex: exId, slot, kind: 'time', minutes: it.duration, sets: [{ done: false }] }); return; }
+    let ex2 = exId, n = it.n;
+    if (lighterLegs && (EX[exId]?.target?.p || []).some(m => CAT.legs.includes(m))) { n = Math.min(n, 2); if (exId === 'presse-explosive') ex2 = 'presse'; }
     items.push({
-      ex: exId, slot, kind: it.hold ? 'hold' : 'reps', reps: it.reps, hold: it.hold, perSide: it.perSide, rest: it.rest,
-      sets: Array.from({ length: it.n }, () => ({ kg: '', reps: '', sec: '', done: false }))
+      ex: ex2, slot, kind: it.hold ? 'hold' : 'reps', reps: it.reps, hold: it.hold, perSide: it.perSide, rest: it.rest, lighter: ex2 !== exId || n !== it.n || undefined,
+      sets: Array.from({ length: n }, () => ({ kg: '', reps: '', sec: '', done: false }))
     });
   });
   if (fit.cool) items.push({ ex: s.cooldown.ex, kind: 'time', cooldown: true, minutes: fit.cool, sets: [{ done: false }] });
@@ -1869,7 +1881,7 @@ function renderPlan(el, head) {
     <p>Trois séances par semaine à Basic-Fit, plus une séance de récupération après les matchs. Chaque séance dure entre 50 et 70 minutes, dont ${p.warmupMin} minutes d'échauffement cardio.</p>
     <p class="callout"><strong>Structure fixe, exercices variés.</strong> Chaque séance garde les mêmes familles de mouvements. Dans chaque famille, l'exercice change : ${v.label.toLowerCase() === 'jamais' ? 'jamais (réglage actuel)' : v.label.toLowerCase()}. <button class="link" type="button" id="goto-variety">Régler</button></p>
     <p class="muted small">Cycles de 4 semaines : 3 semaines où tu augmentes les charges, puis une semaine allégée.</p>
-    ${Object.entries(SESSIONS).map(([k, s]) => `
+    ${visibleSessions().map(([k, s]) => `
       <article class="panel prog" style="--sess:${s.color}">
         <div class="panel__head"><h2>Séance ${k}</h2><span class="muted small">${estimateMinutes(s)} min</span></div>
         <p><strong>${esc(s.name)}.</strong> ${esc(s.goal)}</p>
@@ -2302,6 +2314,13 @@ function renderProfile() {
     </section>
 
     <section class="panel form">
+      <h2>${TT('Type de programme', 'Programme type')}</h2>
+      <div class="goal-pick goal-pick--2">${[['split', TT('Séparé', 'Split'), TT('A jambes, B haut du corps, C puissance et gainage. Plus de volume par groupe à chaque séance.', 'A legs, B upper body, C power and core. More volume per group each session.')], ['full', 'Full body', TT('F1, F2, F3 : tout le corps à chaque séance, chaque muscle 3 fois par semaine. Idéal en saison.', 'F1, F2, F3: whole body every session, each muscle 3 times a week. Ideal in season.')]].map(([k, l, d]) => `
+        <button type="button" class="goal-opt" data-ptype="${k}" aria-pressed="${(p.programType || 'split') === k}"><strong>${l}</strong><span>${d}</span></button>`).join('')}</div>
+      <p class="muted small">${TT('Tu peux changer quand tu veux : ton historique et tes charges restent.', 'You can switch anytime: your history and loads are kept.')}</p>
+    </section>
+
+    <section class="panel form">
       <h2>Langue</h2>
       <div class="seg" role="group" aria-label="Langue">${[['fr', 'Français'], ['en', 'English']].map(([k, l]) => `<button type="button" data-lang="${k}" aria-pressed="${(p.lang || 'fr') === k}" lang="${k}">${l}</button>`).join('')}</div>
     </section>
@@ -2372,6 +2391,13 @@ function renderProfile() {
     p.variety = b.dataset.variety; resolveSessions(); save();
     $$('[data-variety]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     toast(`Variété : ${VARIETY[p.variety].label.toLowerCase()}.`);
+  });
+  $$('[data-ptype]', el).forEach(b => b.onclick = () => {
+    if ((p.programType || 'split') === b.dataset.ptype) return;
+    p.programType = b.dataset.ptype; save();
+    for (const k in PLAN_CACHE) delete PLAN_CACHE[k];
+    renderProfile();
+    toast(p.programType === 'full' ? TT('Programme full body : séances F1, F2, F3.', 'Full body programme: sessions F1, F2, F3.') : TT('Programme séparé : séances A, B, C.', 'Split programme: sessions A, B, C.'));
   });
   $$('[data-lang]', el).forEach(b => b.onclick = () => {
     if ((p.lang || 'fr') === b.dataset.lang) return;
@@ -2831,7 +2857,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '40';
+const APP_VERSION = '41';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

@@ -413,6 +413,42 @@ const TEMPLATE = {
       { slot: "Abdominaux", ex: "crunch-machine", sets: 3, reps: "15", rest: 45 },
       { slot: "Cardio fractionné", ex: "fractionne", duration: 8 }
     ] },
+  F1: { name: "Full body 1", color: "#FF4D1F", warmup: "velo", full: true, cooldown: { ex: "tapis", max: 10 },
+    goal: "Tout le corps : jambes, poussée, tirage, ischios, épaules protégées et abdos.",
+    warmNote: "Progressif : facile au début, transpiration légère à la fin.",
+    items: [
+      { slot: "Jambes, force", pool: ["presse", "smith-squat"], sets: 3, reps: "10", rest: 120, core: true },
+      { slot: "Poussée horizontale", pool: ["smith-bench", "chest-press"], sets: 3, reps: "10", rest: 90, core: true },
+      { slot: "Tirage vertical", pool: ["tirage-vertical", "traction-assist"], sets: 3, reps: "10", rest: 90, core: true },
+      { slot: "Ischio-jambiers", pool: ["leg-curl", "rdl-smith"], sets: 3, reps: "12", rest: 75 },
+      { slot: "Prévention des épaules", pool: ["rot-ext", "face-pull"], sets: 2, reps: "15", rest: 45, core: true, repsBy: { "rot-ext": "15 par bras" } },
+      { slot: "Abdos", ex: "crunch-machine", sets: 2, reps: "15", rest: 45 },
+      { slot: "Mollets", pool: ["mollets-presse", "mollets-smith"], sets: 2, reps: "15", rest: 45 }
+    ] },
+  F2: { name: "Full body 2", color: "#D98200", warmup: "rameur", full: true, cooldown: { ex: "velo", max: 10 },
+    goal: "Tout le corps, une jambe à la fois et hanches puissantes, avec le tendon rotulien protégé.",
+    warmNote: "Rythme régulier, épaules relâchées. Termine par 3 fois 30 secondes plus rapides.",
+    items: [
+      { slot: "Une jambe à la fois", ex: "fente-smith", sets: 3, reps: "10 par jambe", rest: 90, core: true },
+      { slot: "Poussée verticale", ex: "shoulder-press", sets: 3, reps: "10", rest: 90, core: true },
+      { slot: "Tirage horizontal", pool: ["rowing-assis", "row-unilateral"], sets: 3, reps: "10", rest: 90, core: true, repsBy: { "row-unilateral": "10 par bras" } },
+      { slot: "Hanches", pool: ["hip-thrust", "rdl-smith"], sets: 3, reps: "10", rest: 90 },
+      { slot: "Tendon rotulien", ex: "leg-ext-iso", sets: 2, hold: 45, rest: 75, core: true },
+      { slot: "Arrière d'épaule", pool: ["face-pull", "reverse-fly"], sets: 2, reps: "15", rest: 45, core: true },
+      { slot: "Rotation du tronc", ex: "woodchop", sets: 2, reps: "10 par côté", rest: 45 }
+    ] },
+  F3: { name: "Full body 3", color: "#15924A", warmup: "tapis", full: true, cooldown: { ex: "rameur", max: 10 },
+    goal: "Tout le corps avec de la puissance pour le saut, des bras et un tronc solide.",
+    warmNote: "Footing facile ou marche inclinée, puis 3 accélérations courtes.",
+    items: [
+      { slot: "Puissance des jambes", ex: "presse-explosive", sets: 3, reps: "8", rest: 90, core: true },
+      { slot: "Poussée inclinée", pool: ["smith-incline", "pec-deck"], sets: 3, reps: "10", rest: 90, core: true },
+      { slot: "Tirage", pool: ["tirage-vertical", "pull-over"], sets: 3, reps: "10", rest: 90, core: true },
+      { slot: "Fessiers et hanches", pool: ["hip-thrust", "abducteurs", "kickback"], sets: 2, reps: "12", rest: 60, repsBy: { kickback: "12 par jambe", abducteurs: "15" } },
+      { slot: "Bras", pool: ["biceps-curl-cable", "triceps-pushdown", "hammer-rope"], sets: 2, reps: "12", rest: 60 },
+      { slot: "Prévention des épaules", pool: ["y-raise", "rot-ext"], sets: 2, reps: "12", rest: 45, core: true, repsBy: { "rot-ext": "15 par bras" } },
+      { slot: "Abdos", pool: ["crunch-machine", "extension-lombaire"], sets: 2, reps: "15", rest: 45 }
+    ] },
   H: { name: "Maison", color: "#9333EA", warmup: "echauffement-maison", warmupMin: 10, home: true, cooldown: { ex: "etirements-maison", max: 10 },
     goal: "Sans machine, juste ton poids de corps et un élastique.",
     warmNote: "Jumping jacks, montées de genoux et mobilité : chauffe sans t'épuiser.",
