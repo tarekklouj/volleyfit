@@ -66,13 +66,14 @@ const FIG = (() => {
     p.feet = [[cx + rx * Math.cos(th), cy + ry * Math.sin(th)], [cx - rx * Math.cos(th), cy - ry * Math.sin(th)]];
     return p;
   }
+  const easeOut = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 2.2);
   function uAt(f, ph) {
     if (f.loop) return .5 - .5 * Math.cos(2 * Math.PI * ph);
     if (f.hold) return ph < .2 ? smooth(ph / .2) : ph < .8 ? 1 : smooth(1 - (ph - .8) / .2);
-    if (ph < .12) return 0;
-    if (ph < .45) return smooth((ph - .12) / .33);
-    if (ph < .62) return 1;
-    if (ph < .95) return 1 - smooth((ph - .62) / .33);
+    if (ph < .10) return 0;
+    if (ph < .34) return easeOut((ph - .10) / .24);      // phase active : plus rapide
+    if (ph < .46) return 1;                               // pause en contraction
+    if (ph < .92) return 1 - smooth((ph - .46) / .46);   // retour lent et contrôlé
     return 0;
   }
   let TX = { phases: null, labels: null };
@@ -82,7 +83,7 @@ const FIG = (() => {
   function phaseLabelFr(f, ph) {
     if (f.crank || f.loop) return 'Mouvement continu';
     if (f.hold) return ph < .2 ? 'Mise en position' : ph < .8 ? 'Tiens la position' : 'Relâche';
-    return ph < .12 ? 'Départ' : ph < .45 ? 'Mouvement' : ph < .62 ? 'Arrivée' : ph < .95 ? 'Retour contrôlé' : 'Départ';
+    return ph < .10 ? 'Départ' : ph < .34 ? 'Mouvement' : ph < .46 ? 'Arrivée' : ph < .92 ? 'Retour contrôlé' : 'Départ';
   }
   const poseAt = (f, ph) => f.crank ? poseCrank(f, ph) : poseU(f, uAt(f, ph));
   const endPhase = f => f.crank ? .25 : f.loop ? .5 : .5;
@@ -297,11 +298,20 @@ const FIG = (() => {
     return `<g class="${cls} front">${limbs(1)}${torso}${mus}${limbs(0)}${head}</g>`;
   }
 
-  function propsBack(f, J) {
-    let s = '';
+  function stackSVG(f, u) {
+    if (!f.cable || f.band || f.view === 'top' || f.noStack || (f.cable[0] > 50 && f.cable[0] < 140)) return '';
+    const x = Math.min(188, Math.max(8, f.cable[0] + (f.cable[0] > 100 ? 8 : -14))), y = 112, lift = u * 14;
+    let s = `<rect class="stack-frame" x="${x - 1}" y="${y - 18}" width="12" height="${140 - y + 18}" rx="2"/>`;
+    for (let k = 0; k < 6; k++) s += `<rect class="stack-plate" x="${x}" y="${f1(y + k * 4.4)}" width="10" height="3.6" rx="1"/>`;
+    for (let k = 0; k < 3; k++) s += `<rect class="stack-plate stack-plate--on" x="${x}" y="${f1(y + k * 4.4 - lift)}" width="10" height="3.6" rx="1"/>`;
+    return s;
+  }
+  function propsBack(f, J, u = 0) {
+    let s = stackSVG(f, u);
+    if (f.band && f.cable) { s += `<path class="band" d="M${f1(f.cable[0])},${f1(f.cable[1])} Q${f1((f.cable[0] + J[f.cableTo || 'w0'][0]) / 2 + 4)},${f1((f.cable[1] + J[f.cableTo || 'w0'][1]) / 2)} ${f1(J[f.cableTo || 'w0'][0])},${f1(J[f.cableTo || 'w0'][1])}"/>`; }
     if (f.bar) s += circ([J.sh[0] - 7, J.sh[1] + 3], 11, 'plate');
     if (f.seat) s += `<rect class="eq" x="${f1(J.hip[0] - 13)}" y="${f1(J.hip[1] + 4)}" width="26" height="6" rx="3"/>`;
-    if (f.cable) s += ln(f.cable, J[f.cableTo || 'w0'], 'cable') + circ(f.cable, 4, 'pad');
+    else if (f.cable) s += ln(f.cable, J[f.cableTo || 'w0'], 'cable') + circ(f.cable, 4, 'pad');
     if (f.lever) s += ln(f.lever.p, J[f.lever.j], 'lever');
     return s;
   }
@@ -322,10 +332,11 @@ const FIG = (() => {
   const tgtSet = t => t ? { p: new Set(t.p || []), s: new Set(t.s || []) } : null;
   function frame(f, phase, ghost, tgt) {
     if (f.draw) return (ghost ? `<g class="ghost">${f.draw(0, false)}</g>` : '') + f.draw(uAt(f, phase), true);
-    const J = solve(poseAt(f, phase));
+    const J = solve(poseAt(f, phase)), u = f.crank ? 0 : uAt(f, phase);
     let g = trail(f);
+    if (f.view !== 'top') { const fx = J.a0 && J.a1 ? (J.a0[0] + J.a1[0]) / 2 : J.hip[0]; g += `<ellipse class="shadow" cx="${f1(fx)}" cy="140" rx="${f.view === 'front' ? 22 : 30}" ry="2.6"/>`; }
     if (ghost) g += body(solve(f.crank ? poseCrank(f, 0) : poseU(f, 0)), 'ghost', null, f, null);
-    return g + propsBack(f, J) + body(J, '', activeSet(f), f, tgt) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${LB(t)}</text>`).join('');
+    return g + propsBack(f, J, u) + body(J, '', activeSet(f), f, tgt) + propsFront(f, J) + (f.labels || []).map(([x, y, t, a]) => `<text class="lbl" x="${x}" y="${y}"${a ? ` text-anchor="${a}"` : ''}>${LB(t)}</text>`).join('');
   }
 
   function wrap(f, inner, label) {
@@ -753,9 +764,42 @@ const FIG = (() => {
   DEFS['band-lateral'] = { ...DEFS['lateral-raise'], bg: [], cable: [100, 138] };
   DEFS['rdl-elastique'] = { ...DEFS.rdl, bg: [], cable: [102, 138], hand: 'grip' };
   for (const k of ['jumping-jacks']) DEFS[k].view = 'front';
+
+  /* ---------- machines ajoutées (v44) ---------- */
+  DEFS['hack-squat'] = D(
+    { hip: [100, 72], t: 198, a: [-10, 170, -12, 168], feet: [[124, 128], [120, 128]] },
+    { hip: [84, 98], t: 204 },
+    { bg: [['l', 64, 22, 120, 130, 6], ['r', 104, 129, 44, 6, 3], ['l', 126, 135, 126, 140, 4]], dur: 3800 });
+  DEFS['mollets-assis'] = D(
+    { hip: [80, 104], t: 180, hands: [[106, 92], [104, 92]], feet: [[118, 133], [114, 133]] },
+    { feet: [[118, 125], [114, 125]] },
+    { bg: [['r', 62, 108, 36, 7, 3], ['l', 78, 115, 78, 140, 5], ['r', 96, 89, 30, 6, 3], ['r', 108, 134, 26, 4, 2], ['l', 124, 92, 124, 140, 4]], dur: 2600 });
+  DEFS['incline-press'] = D(
+    { hip: [80, 100], t: 196, a: [-55, 132, -57, 130], l: [80, 0, 78, 0] },
+    { a: [128, 130, 126, 128] },
+    { bg: [['r', 64, 104, 36, 7, 3], ['l', 64, 104, 50, 46, 8], ['l', 82, 111, 82, 140, 5], ['l', 150, 10, 150, 140, 5], ['l', 120, 24, 150, 24, 4]], hand: 'grip', dur: 3400 });
+  DEFS['chest-row'] = D(
+    { hip: [74, 104], t: 152, a: [92, 92, 90, 90], feet: [[112, 137], [108, 137]] },
+    { a: [-55, 88, -57, 88] },
+    { bg: [['r', 58, 108, 34, 7, 3], ['l', 76, 115, 76, 140, 5], ['l', 104, 62, 116, 96, 8], ['l', 146, 30, 146, 140, 5]], hand: 'grip', dur: 3200 });
+  DEFS['t-bar'] = D(
+    { hip: [78, 80], t: 128, a: [4, 4, 2, 2], feet: [[104, 137], [100, 137]] },
+    { a: [-62, 2, -64, 0] },
+    { lever: { p: [182, 138], j: 'w0' }, hand: 'bar', dur: 3200 });
+  DEFS['knee-raise'] = D(
+    { hip: [96, 76], t: 180, a: [2, 90, 0, 88], l: [4, 2, 2, 0] },
+    { l: [96, 8, 94, 6] },
+    { bg: [['r', 80, 20, 7, 72, 3], ['r', 86, 60, 40, 6, 3], ['l', 84, 92, 84, 140, 5], ['l', 120, 66, 120, 140, 4]], dur: 3000 });
+  for (const k of ['band-row', 'band-pulldown', 'band-curl', 'band-triceps', 'band-press', 'band-lateral', 'rdl-elastique']) if (DEFS[k]) DEFS[k] = { ...DEFS[k], band: true };
   for (const f of Object.values(DEFS)) if (f.view === 'front' && f.p0) { for (const p of [f.p0, f.p1]) { if (p) { p.shw = 12; p.hw = 5.5; } } f._act = undefined; f._trail = undefined; }
   const VIEWS = { side: 'Vue de côté', front: 'Vue de face', top: 'Vue de dessus' };
   const HINTS = {
+    'hack-squat': "Vue de côté, dos contre le coussin incliné. Tu descends jusqu'à cuisses parallèles, puis tu pousses dans tout le pied.",
+    'mollets-assis': "Vue de côté, assis, coussin sur les cuisses. Seuls les talons montent et descendent.",
+    'incline-press': "Vue de côté, assis sur le banc incliné. Les mains poussent vers le haut et l'avant.",
+    'chest-row': "Vue de côté, poitrine contre le coussin. Les coudes reculent, le buste ne bouge pas.",
+    't-bar': "Vue de côté, buste penché, dos plat. La barre monte vers la poitrine, coudes près du corps.",
+    'knee-raise': "Vue de côté, avant-bras sur les appuis. Les genoux montent vers la poitrine, sans balancer.",
     'ytw-sol': "Vue de côté, allongé sur le ventre. Les bras tendus en Y décollent du sol, la tête reste basse.",
     pompe: "Vue de côté. Le corps reste droit comme une planche, la poitrine descend vers le sol.",
     'squat-pdc': "Vue de côté. Les hanches reculent comme pour s'asseoir, les bras devant pour l'équilibre.",

@@ -22,6 +22,8 @@ Application web pour un joueur de volleyball qui s'entraîne à Basic-Fit : la s
 - **Suivi corporel** : poids, IMC, masse grasse, musculaire, osseuse, eau, objectifs de poids et de masse grasse.
 - **Mode focus** pendant la séance : un exercice à la fois, grande animation, charge conseillée, cercles répétitions, repos et séries, réglage de la charge en un tap, historique des séries avec l'heure.
 - **Séance Maison** sans machine (poids du corps ou un élastique) : 22 exercices à la maison, sans poulie ni machine, même structure par familles et même rotation maîtrisée. Chaque groupe musculaire de l'onglet Muscles a sa section « À la maison, sans machine ».
+- **76 exercices et plus de 430 noms de machines** (français, anglais, néerlandais), dont hack squat, mollets assis, développé incliné, rowing poitrine appuyée, T-bar, chaise romaine, machines iso-latérales et à disques (v44).
+- **Animations** : tempo réaliste (montée rapide, descente lente), pile de poids qui se soulève sur les poulies, élastiques visibles, ombre au sol.
 - **Recherche par machine** : tape le nom écrit sur la machine en français, anglais ou néerlandais (« Diverging lat pulldown », « Beenpers », « Converging chest press »…), l'app trouve l'exercice et l'ajoute à la séance ou démarre une séance libre.
 - **Minuteur iPhone sur l'écran verrouillé** via un raccourci « Repos VolleyFit » (bouton ou automatique à chaque repos), écran gardé allumé pendant la séance, bip et vibration désactivés par défaut.
 - **Rien ne se perd** : séance oubliée enregistrée automatiquement 3 h après la dernière série, rappel quand toutes les séries sont faites, et proposition d'enregistrer au lieu d'annuler quand des séries sont validées.

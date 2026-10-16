@@ -851,3 +851,10 @@ button.week__code { font-size: .98rem; }
 .coach__alt { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 10px; padding: 6px 8px; border: 0; background: none; border-top: 1px solid var(--line); cursor: pointer; color: var(--ink); text-align: left; }
 .coach__alt svg { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 2.5; }
 .tag--xs { min-width: 0; width: auto; height: 20px; padding: 0 5px; font-size: .72rem; border-radius: 6px; background: var(--sess); color: #fff; display: inline-grid; place-items: center; }
+
+/* v44 : animations enrichies */
+.fig .shadow { fill: var(--ink); opacity: .1; }
+.fig .stack-frame { fill: none; stroke: var(--eq-dark); stroke-width: 1.2; opacity: .7; }
+.fig .stack-plate { fill: var(--eq); stroke: var(--eq-dark); stroke-width: .5; }
+.fig .stack-plate--on { fill: var(--accent); stroke: none; opacity: .9; }
+.fig .band { fill: none; stroke: #E5A100; stroke-width: 3.2; stroke-linecap: round; }

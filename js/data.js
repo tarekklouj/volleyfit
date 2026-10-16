@@ -58,12 +58,12 @@ const EXERCISES = {
     steps: ["Charge légère : environ la moitié de ta charge habituelle.", "Descends en 2 secondes jusqu'à un angle droit aux genoux.", "Pousse le plus vite possible, comme à l'impulsion d'un saut, sans décoller les pieds."],
     mistake: "Prendre trop lourd : le mouvement devient lent et perd son intérêt.",
     why: "Travaille la vitesse de poussée des jambes, ce qui fait la hauteur de ton saut." },
-  presse: { name: "Presse à cuisses", zone: "Machines", equip: "Leg press", type: "reps", loaded: true, fig: "presse", alt: ["smith-squat"],
+  presse: { name: "Presse à cuisses", zone: "Machines", equip: "Leg press", type: "reps", loaded: true, fig: "presse", alt: ["smith-squat", "hack-squat"],
     target: { p: ["quadriceps", "fessiers"], s: ["ischios", "adducteurs"] },
     steps: ["Pieds au milieu de la plateforme, largeur d'épaules.", "Déverrouille et descends jusqu'à ce que les genoux forment un angle droit.", "Pousse sans verrouiller complètement les genoux en haut."],
     mistake: "Décoller les fesses du siège en bas : le bas du dos s'arrondit.",
     why: "Construit la force des jambes en sécurité, sans charger le dos." },
-  "smith-squat": { name: "Squat à la Smith machine", zone: "Smith machine", equip: "Smith machine (barre guidée)", type: "reps", loaded: true, fig: "smith-squat", alt: ["presse"],
+  "smith-squat": { name: "Squat à la Smith machine", zone: "Smith machine", equip: "Smith machine (barre guidée)", type: "reps", loaded: true, fig: "smith-squat", alt: ["presse", "hack-squat"],
     target: { p: ["quadriceps", "fessiers"], s: ["ischios", "lombaires", "abdos"] },
     steps: ["Barre sur le haut du dos, pieds légèrement en avant de la barre.", "Descends jusqu'à cuisses parallèles au sol, dos droit.", "Remonte en poussant dans tout le pied."],
     mistake: "Talons qui décollent du sol.",
@@ -103,12 +103,12 @@ const EXERCISES = {
     steps: ["Assis, coussins à l'intérieur des genoux, jambes écartées.", "Serre les jambes en 1 seconde.", "Rouvre en 2 secondes, sans aller jusqu'à la douleur."],
     mistake: "Écarter trop loin au départ.",
     why: "Protège l'aine dans les déplacements latéraux et les plongeons." },
-  "mollets-presse": { name: "Mollets à la presse", zone: "Machines", equip: "Leg press", type: "reps", loaded: true, fig: "mollets-presse", alt: ["mollets-smith"],
+  "mollets-presse": { name: "Mollets à la presse", zone: "Machines", equip: "Leg press", type: "reps", loaded: true, fig: "mollets-presse", alt: ["mollets-smith", "mollets-assis"],
     target: { p: ["mollets"], s: [] },
     steps: ["Avant du pied sur le bord bas de la plateforme.", "Jambes tendues, pousse avec les orteils.", "Redescends lentement pour étirer le mollet."],
     mistake: "Plier les genoux pour aider.",
     why: "Chevilles et tendon d'Achille plus solides pour encaisser les sauts répétés." },
-  "mollets-smith": { name: "Mollets debout à la Smith", zone: "Smith machine", equip: "Smith machine + step", type: "reps", loaded: true, fig: "mollets-smith", alt: ["mollets-presse"],
+  "mollets-smith": { name: "Mollets debout à la Smith", zone: "Smith machine", equip: "Smith machine + step", type: "reps", loaded: true, fig: "mollets-smith", alt: ["mollets-presse", "mollets-assis"],
     target: { p: ["mollets"], s: [] },
     steps: ["Barre sur le haut du dos, avant des pieds sur un step ou un disque.", "Monte sur la pointe et tiens 1 seconde.", "Descends lentement, talons sous le niveau du step."],
     mistake: "Rebondir en bas du mouvement.",
@@ -130,12 +130,12 @@ const EXERCISES = {
     steps: ["Cuisses bloquées sous les boudins, prise un peu plus large que les épaules.", "Tire la barre vers le haut de la poitrine en sortant la poitrine.", "Remonte bras tendus en contrôlant."],
     mistake: "Tirer la barre derrière la nuque.",
     why: "Des dorsaux puissants rendent le bras armé plus rapide à l'attaque." },
-  "chest-press": { name: "Développé assis à la machine", zone: "Machines", equip: "Chest press", type: "reps", loaded: true, fig: "chest-press", alt: ["smith-bench"],
+  "chest-press": { name: "Développé assis à la machine", zone: "Machines", equip: "Chest press", type: "reps", loaded: true, fig: "chest-press", alt: ["smith-bench", "incline-press"],
     target: { p: ["pectoraux"], s: ["triceps", "deltoides"] },
     steps: ["Règle le siège pour que les poignées soient à hauteur de poitrine.", "Pousse jusqu'à bras presque tendus.", "Reviens en 2 secondes, coudes à 45° du corps."],
     mistake: "Coudes à hauteur des épaules : l'épaule est en position fragile.",
     why: "Force de poussée pour le contre et pour te relever des plongeons." },
-  "rowing-assis": { name: "Tirage horizontal assis", zone: "Machines", equip: "Seated row", type: "reps", loaded: true, fig: "rowing-assis", alt: ["tirage-vertical"],
+  "rowing-assis": { name: "Tirage horizontal assis", zone: "Machines", equip: "Seated row", type: "reps", loaded: true, fig: "rowing-assis", alt: ["tirage-vertical", "chest-supported-row"],
     target: { p: ["dorsaux", "trapezes"], s: ["biceps", "deltoides-arr"] },
     steps: ["Assis, buste droit, bras tendus vers les poignées.", "Tire vers le nombril en serrant les omoplates.", "Reviens lentement sans arrondir le dos."],
     mistake: "Balancer le buste d'avant en arrière.",
@@ -162,7 +162,7 @@ const EXERCISES = {
     steps: ["Poulie en haut, de profil, mains jointes sur la poignée.", "Tire en diagonale vers la hanche opposée en pivotant.", "Reviens lentement, bras presque tendus."],
     mistake: "Plier les bras : ils restent presque tendus.",
     why: "Gainage en rotation, comme le geste du service smashé." },
-  "crunch-machine": { name: "Crunch à la machine", zone: "Machines", equip: "Machine abdominale (ab crunch)", type: "reps", loaded: true, fig: "crunch-machine", alt: [],
+  "crunch-machine": { name: "Crunch à la machine", zone: "Machines", equip: "Machine abdominale (ab crunch)", type: "reps", loaded: true, fig: "crunch-machine", alt: ["knee-raise"],
     target: { p: ["abdos"], s: ["obliques"] },
     steps: ["Assis, pieds calés, poignées près des épaules.", "Enroule le buste vers les genoux en soufflant.", "Reviens lentement, sans laisser les plaques se toucher."],
     mistake: "Tirer avec les bras au lieu d'enrouler le ventre.",
@@ -180,7 +180,7 @@ const EXERCISES = {
     steps: ["Allongé sous la barre, elle tombe au niveau du bas des pectoraux.", "Descends la barre en 2 secondes jusqu'à frôler la poitrine, coudes à 45°.", "Pousse en expirant jusqu'à bras presque tendus."],
     mistake: "Rebondir sur la poitrine ou décoller les fesses du banc.",
     why: "L'exercice roi pour épaissir les pectoraux et gagner en force de poussée." },
-  "smith-incline": { name: "Développé incliné à la Smith", zone: "Smith machine", equip: "Smith machine + banc inclinable à 30°", type: "reps", loaded: true, fig: "smith-incline", alt: ["smith-bench", "chest-press"],
+  "smith-incline": { name: "Développé incliné à la Smith", zone: "Smith machine", equip: "Smith machine + banc inclinable à 30°", type: "reps", loaded: true, fig: "smith-incline", alt: ["smith-bench", "chest-press", "incline-press"],
     target: { p: ["pectoraux", "deltoides"], s: ["triceps"] },
     steps: ["Banc à 30°, la barre descend vers le haut de la poitrine.", "Descends en 2 secondes, coudes à 45°.", "Pousse jusqu'à bras presque tendus."],
     mistake: "Banc trop incliné : les épaules prennent le relais.",
@@ -240,7 +240,7 @@ const EXERCISES = {
     steps: ["Genoux sur la plateforme, prise un peu plus large que les épaules.", "Tire jusqu'à ce que le menton passe la barre.", "Redescends en 2 secondes, bras presque tendus."],
     mistake: "Prendre trop de contrepoids : tu dois finir la série difficilement.",
     why: "Le meilleur exercice pour élargir le dos." },
-  "row-unilateral": { name: "Tirage à la poulie un bras", zone: "Poulie", equip: "Poulie à mi-hauteur avec poignée", type: "reps", loaded: true, fig: "rowing-assis", alt: ["rowing-assis"],
+  "row-unilateral": { name: "Tirage à la poulie un bras", zone: "Poulie", equip: "Poulie à mi-hauteur avec poignée", type: "reps", loaded: true, fig: "rowing-assis", alt: ["rowing-assis", "t-bar-row"],
     target: { p: ["dorsaux"], s: ["biceps", "deltoides-arr"] },
     steps: ["Une main sur la poignée, buste légèrement penché, pieds décalés.", "Tire le coude vers la hanche en serrant l'omoplate.", "Reviens en laissant l'épaule s'étirer vers l'avant."],
     mistake: "Tourner le buste pour tirer.",
@@ -347,6 +347,32 @@ const EXERCISES = {
     steps: ["Debout sur l'élastique, mains devant les cuisses.", "Pousse les hanches en arrière, dos plat.", "Remonte en serrant les fessiers."],
     mistake: "Arrondir le dos.", why: "Ischios solides : moins de claquages sur les sprints." },
 
+
+  /* ---------- machines ajoutées (v44) ---------- */
+  "hack-squat": { name: "Hack squat", zone: "Machines", equip: "Hack squat ou pendulum squat", type: "reps", loaded: true, fig: "hack-squat", alt: ["presse", "smith-squat"],
+    target: { p: ["quadriceps", "fessiers"], s: ["adducteurs", "ischios"] },
+    steps: ["Dos et épaules contre les coussins, pieds au milieu de la plateforme, largeur d'épaules.", "Déverrouille et descends jusqu'à cuisses parallèles à la plateforme.", "Pousse dans tout le pied sans verrouiller les genoux en haut."],
+    mistake: "Décoller les talons ou laisser les genoux rentrer.", why: "Des quadriceps très forts, dos protégé : idéal pour la détente." },
+  "mollets-assis": { name: "Mollets assis à la machine", zone: "Machines", equip: "Seated calf (mollets assis)", type: "reps", loaded: true, fig: "mollets-assis", alt: ["mollets-presse", "mollets-smith"],
+    target: { p: ["mollets"], s: [] },
+    steps: ["Assis, avant des pieds sur la marche, coussin sur le bas des cuisses.", "Monte sur la pointe des pieds, tiens 1 seconde.", "Descends lentement, talons sous la marche."],
+    mistake: "Rebondir en bas du mouvement.", why: "Travaille le soléaire, le mollet profond qui encaisse les réceptions." },
+  "incline-press": { name: "Développé incliné à la machine", zone: "Machines", equip: "Incline chest press", type: "reps", loaded: true, fig: "incline-press", alt: ["smith-incline", "chest-press"],
+    target: { p: ["pectoraux"], s: ["deltoides", "triceps"] },
+    steps: ["Siège réglé pour que les poignées partent du haut de la poitrine.", "Pousse vers le haut et l'avant jusqu'à bras presque tendus.", "Reviens en 2 secondes, coudes à 45° du corps."],
+    mistake: "Cambrer le dos pour pousser plus lourd.", why: "Muscle le haut des pectoraux, utile pour le contre." },
+  "chest-supported-row": { name: "Rowing poitrine appuyée", zone: "Machines", equip: "Chest supported row / rowing machine", type: "reps", loaded: true, fig: "chest-row", alt: ["rowing-assis", "row-unilateral"],
+    target: { p: ["dorsaux", "trapezes"], s: ["deltoides-arr", "biceps"] },
+    steps: ["Poitrine contre le coussin, pieds bien posés, bras tendus vers les poignées.", "Tire les coudes vers l'arrière en serrant les omoplates.", "Reviens lentement, sans décoller la poitrine du coussin."],
+    mistake: "Décoller la poitrine pour tirer avec le dos.", why: "Épaisseur du dos sans charger les lombaires, épaules plus stables." },
+  "t-bar-row": { name: "Rowing T-bar", zone: "Machines", equip: "T-bar row ou landmine", type: "reps", loaded: true, fig: "t-bar", alt: ["chest-supported-row", "rowing-assis"],
+    target: { p: ["dorsaux", "trapezes"], s: ["lombaires", "biceps", "deltoides-arr"] },
+    steps: ["Pieds de chaque côté de la barre, buste penché à 45°, dos plat.", "Tire la barre vers le bas de la poitrine, coudes près du corps.", "Redescends lentement, bras tendus, sans arrondir le dos."],
+    mistake: "Arrondir le dos ou se redresser pour tirer.", why: "Un dos épais et puissant pour les attaques." },
+  "knee-raise": { name: "Relevé de genoux à la chaise romaine", zone: "Machines", equip: "Chaise romaine (knee raise / captain's chair)", type: "reps", loaded: false, fig: "knee-raise", alt: ["crunch-machine"],
+    target: { p: ["abdos"], s: ["obliques"] },
+    steps: ["Avant-bras sur les appuis, dos contre le dossier, jambes pendantes.", "Monte les genoux vers la poitrine en enroulant le bassin.", "Redescends lentement, sans balancer les jambes."],
+    mistake: "Balancer les jambes et cambrer le dos.", why: "Le bas des abdos, qui stabilise le bassin à la réception." },
   /* ---------- Récupération ---------- */
   "foam-roller": { name: "Rouleau de massage", zone: "Étirements", equip: "Foam roller (zone étirements)", type: "time", fig: "foam-roller",
     target: { p: ["mollets", "quadriceps"], s: ["fessiers", "dorsaux"] },
@@ -493,7 +519,7 @@ const LEVELS = {
 };
 const ASSIST_BY_LEVEL = { debutant: 0.55, intermediaire: 0.35, confirme: 0.15 };
 const LOADS = {
-  presse: [1.4, "stack"], "presse-explosive": [0.7, "stack"], "smith-squat": [0.75, "smith"], "fente-smith": [0.4, "smith"],
+  presse: [1.4, "stack"], "hack-squat": [0.6, "stack"], "mollets-assis": [0.5, "stack"], "incline-press": [0.45, "stack"], "chest-supported-row": [0.5, "stack"], "t-bar-row": [0.4, "plates"], "presse-explosive": [0.7, "stack"], "smith-squat": [0.75, "smith"], "fente-smith": [0.4, "smith"],
   "leg-ext-iso": [0.55, "stack"], "leg-extension": [0.5, "stack"], "leg-curl": [0.4, "stack"], "rdl-smith": [0.7, "smith"],
   "hip-thrust": [0.9, "smith"], abducteurs: [0.5, "stack"], adducteurs: [0.45, "stack"], "mollets-presse": [1.1, "stack"],
   "mollets-smith": [0.6, "smith"], kickback: [0.1, "cable"],
@@ -664,7 +690,8 @@ const MACHINE_NAMES = {
   "loopband",
   "tapis de course",
   "running",
-  "Treadmill"
+  "Treadmill",
+  "curve treadmill"
  ],
  "velo": [
   "bike",
@@ -674,7 +701,12 @@ const MACHINE_NAMES = {
   "hometrainer",
   "spinning",
   "velo",
-  "Bike"
+  "Bike",
+  "air bike",
+  "assault bike",
+  "exercise bike",
+  "fietsergometer",
+  "spinning bike"
  ],
  "rameur": [
   "rower",
@@ -698,7 +730,10 @@ const MACHINE_NAMES = {
   "traploper",
   "stepper",
   "escalier",
-  "Stair climber"
+  "Stair climber",
+  "stepmill",
+  "climbmill",
+  "trappenloper"
  ],
  "presse": [
   "leg press",
@@ -709,7 +744,12 @@ const MACHINE_NAMES = {
   "horizontal leg press",
   "presse a cuisses",
   "presse jambes",
-  "Leg press"
+  "Leg press",
+  "squat press",
+  "leg press machine",
+  "plate loaded leg press",
+  "45 degree leg press",
+  "beenpers 45"
  ],
  "presse-explosive": [
   "explosive leg press",
@@ -723,7 +763,9 @@ const MACHINE_NAMES = {
   "squat",
   "geleide stang",
   "kniebuiging",
-  "Smith machine squat"
+  "Smith machine squat",
+  "smith",
+  "smith machine squat"
  ],
  "fente-smith": [
   "smith lunge",
@@ -745,7 +787,10 @@ const MACHINE_NAMES = {
   "knee extension",
   "quadriceps",
   "leg ext",
-  "Leg extension"
+  "Leg extension",
+  "quad extension",
+  "beenstrekmachine",
+  "leg extension machine"
  ],
  "leg-curl": [
   "leg curl",
@@ -757,7 +802,11 @@ const MACHINE_NAMES = {
   "beenbuigen",
   "hamstring",
   "leg flexion",
-  "Leg curl"
+  "Leg curl",
+  "kneeling leg curl",
+  "standing leg curl",
+  "hamstring machine",
+  "beenbuiger"
  ],
  "rdl-smith": [
   "romanian deadlift",
@@ -784,7 +833,10 @@ const MACHINE_NAMES = {
   "outer thigh",
   "abducteurs",
   "abduction",
-  "Hip abduction machine"
+  "Hip abduction machine",
+  "multi hip abduction",
+  "hip abductor machine",
+  "abduction machine"
  ],
  "adducteurs": [
   "hip adduction",
@@ -794,7 +846,10 @@ const MACHINE_NAMES = {
   "inner thigh",
   "adducteurs",
   "adduction",
-  "Hip adduction machine"
+  "Hip adduction machine",
+  "multi hip adduction",
+  "hip adductor machine",
+  "adduction machine"
  ],
  "mollets-presse": [
   "calf press",
@@ -835,7 +890,14 @@ const MACHINE_NAMES = {
   "front pulldown",
   "wide grip pulldown",
   "tirage poitrine",
-  "Lat pulldown"
+  "Lat pulldown",
+  "iso lateral pulldown",
+  "iso lateral front lat pulldown",
+  "plate loaded pulldown",
+  "high pulley",
+  "lat machine",
+  "rug trekken",
+  "latpulldown"
  ],
  "chest-press": [
   "chest press",
@@ -845,7 +907,13 @@ const MACHINE_NAMES = {
   "borst",
   "bench press machine",
   "incline chest press",
-  "Machine chest press"
+  "Machine chest press",
+  "vertical chest press",
+  "iso lateral chest press",
+  "plate loaded chest press",
+  "wide chest press",
+  "decline chest press",
+  "borstpers machine"
  ],
  "rowing-assis": [
   "seated row",
@@ -857,7 +925,11 @@ const MACHINE_NAMES = {
   "rug roeien",
   "tirage horizontal",
   "mid row",
-  "Seated row"
+  "Seated row",
+  "iso lateral low row",
+  "seated cable row",
+  "low pulley row",
+  "horizontale trekken"
  ],
  "reverse-fly": [
   "rear delt",
@@ -867,7 +939,10 @@ const MACHINE_NAMES = {
   "achterste schouder",
   "oiseau",
   "rear deltoid",
-  "Rear delt machine"
+  "Rear delt machine",
+  "rear delt machine",
+  "reverse pec deck machine",
+  "achterste schouder machine"
  ],
  "pec-deck": [
   "pec deck",
@@ -878,7 +953,11 @@ const MACHINE_NAMES = {
   "borst fly",
   "peck deck",
   "pectoral fly",
-  "Pec deck (machine fly)"
+  "Pec deck (machine fly)",
+  "rear delt pec fly",
+  "fly machine",
+  "pec fly rear delt",
+  "butterfly machine"
  ],
  "cable-fly": [
   "cable crossover",
@@ -887,7 +966,12 @@ const MACHINE_NAMES = {
   "kabel kruisen",
   "vis a vis",
   "dual cable",
-  "Cable crossover fly"
+  "Cable crossover fly",
+  "functional trainer",
+  "dual adjustable pulley",
+  "cable station",
+  "kabelstation",
+  "dubbele kabel"
  ],
  "y-raise": [
   "y raise",
@@ -907,7 +991,13 @@ const MACHINE_NAMES = {
   "cable rotation",
   "houthakker",
   "torso rotation",
-  "Cable woodchop"
+  "Cable woodchop",
+  "rotary torso",
+  "torso rotation machine",
+  "rotatie romp",
+  "rotation du buste",
+  "oblique machine",
+  "Torso rotation"
  ],
  "crunch-machine": [
   "ab crunch",
@@ -917,8 +1007,11 @@ const MACHINE_NAMES = {
   "buikspieren",
   "buikspiermachine",
   "abs",
-  "rotary torso",
-  "Machine crunch"
+  "Machine crunch",
+  "abdominal crunch machine",
+  "ab machine",
+  "buikspier machine",
+  "abdo machine"
  ],
  "extension-lombaire": [
   "back extension",
@@ -928,7 +1021,11 @@ const MACHINE_NAMES = {
   "roman chair",
   "lombaires",
   "lumbar extension",
-  "Back extension"
+  "Back extension",
+  "lower back machine",
+  "back extension machine",
+  "rugstrekmachine",
+  "45 back extension"
  ],
  "smith-bench": [
   "smith bench press",
@@ -951,7 +1048,11 @@ const MACHINE_NAMES = {
   "overhead press",
   "military press",
   "developpe epaules",
-  "Machine shoulder press"
+  "Machine shoulder press",
+  "iso lateral shoulder press",
+  "plate loaded shoulder press",
+  "overhead press machine",
+  "schouderdrukken"
  ],
  "lateral-raise": [
   "lateral raise",
@@ -976,7 +1077,10 @@ const MACHINE_NAMES = {
   "biceps machine",
   "curl machine",
   "biceps",
-  "Machine biceps curl"
+  "Machine biceps curl",
+  "arm curl machine",
+  "biceps curl machine",
+  "bicepsmachine"
  ],
  "hammer-rope": [
   "hammer curl",
@@ -993,7 +1097,11 @@ const MACHINE_NAMES = {
   "triceps extension",
   "triceps machine",
   "triceps",
-  "Cable triceps pushdown"
+  "Cable triceps pushdown",
+  "triceps dip machine",
+  "seated dip",
+  "triceps press machine",
+  "dip machine seated"
  ],
  "triceps-overhead": [
   "overhead triceps",
@@ -1008,7 +1116,9 @@ const MACHINE_NAMES = {
   "dippen",
   "assisted chin dip",
   "chin dip assist",
-  "Assisted dips"
+  "Assisted dips",
+  "assisted dip machine",
+  "dip assist"
  ],
  "traction-assist": [
   "assisted pull up",
@@ -1019,7 +1129,10 @@ const MACHINE_NAMES = {
   "tractions",
   "assisted chin dip",
   "chin dip assist",
-  "Assisted pull-ups"
+  "Assisted pull-ups",
+  "assisted pull up machine",
+  "gravitron",
+  "chin up assist"
  ],
  "row-unilateral": [
   "single arm row",
@@ -1035,6 +1148,78 @@ const MACHINE_NAMES = {
   "glute machine",
   "bilspieren",
   "glute",
-  "Cable glute kickback"
+  "Cable glute kickback",
+  "multi hip",
+  "glute kickback machine",
+  "standing glute",
+  "glute trainer",
+  "hip extension machine",
+  "bil machine"
+ ],
+ "hack-squat": [
+  "hack squat",
+  "pendulum squat",
+  "hack squat machine",
+  "v squat",
+  "power squat",
+  "hack squat machine",
+  "hacksquat",
+  "schuine squat",
+  "Hack squat"
+ ],
+ "mollets-assis": [
+  "seated calf",
+  "seated calf raise",
+  "calf seated",
+  "zittende kuiten",
+  "kuiten zittend",
+  "mollets assis",
+  "soleus",
+  "Seated calf raise"
+ ],
+ "incline-press": [
+  "incline chest press",
+  "incline press",
+  "incline press machine",
+  "iso lateral incline press",
+  "schuine borstpers",
+  "incline bench machine",
+  "developpe incline machine",
+  "Incline machine press"
+ ],
+ "chest-supported-row": [
+  "chest supported row",
+  "seated row machine",
+  "iso lateral row",
+  "plate loaded row",
+  "high row",
+  "low row machine",
+  "t bar row machine supported",
+  "borststeun roeien",
+  "rowing appuye",
+  "Chest supported row"
+ ],
+ "t-bar-row": [
+  "t bar row",
+  "t-bar",
+  "tbar",
+  "landmine row",
+  "t stang roeien",
+  "rowing t",
+  "Landmine row"
+ ],
+ "knee-raise": [
+  "knee raise",
+  "captain s chair",
+  "captains chair",
+  "vertical knee raise",
+  "leg raise",
+  "chin dip knee raise",
+  "dip knee raise",
+  "beenheffen",
+  "knieheffen",
+  "chaise romaine",
+  "releve de genoux",
+  "Hanging knee raise"
  ]
 };
