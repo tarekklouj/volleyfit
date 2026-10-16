@@ -837,12 +837,9 @@ function fullAltHTML(main) {
   const f = smartNext({ full: true });
   if (!f.code || !SESSIONS[f.code]) return '';
   const s = SESSIONS[f.code], why = f.reasons.filter(x => !/^On laisse|^Letting/.test(x)).slice(0, 2);
-  return `<div class="coach__alt" style="--sess:${s.color}">
-      <p class="coach__alt-t">${TT('Ou en full body, tout le corps', 'Or full body, whole body')}</p>
-      <div class="coach__pick"><span class="tag">${f.code}</span><strong>${esc(s.name)}</strong></div>
-      <p class="muted small">${esc(s.goal)}${why.length ? ' ' + why.map(esc).join(' ') : ''}</p>
-      <div class="btn-row"><button class="btn btn--ghost btn--sm" type="button" data-full-plan="${f.code}">${TT('Voir le plan', 'See the plan')}</button><button class="btn btn--sm" type="button" data-start="${f.code}" style="background:${s.color}">${ICON.play} ${TT('Faire', 'Do')} ${f.code}</button></div>
-    </div>`;
+  return `<button class="coach__alt" type="button" data-full-plan="${f.code}" style="--sess:${s.color}">
+      <span class="muted small">${TT('Ou en full body :', 'Or full body:')}</span> <span class="tag tag--xs">${f.code}</span> <span class="small">${esc(s.name)}</span> ${ICON.right}
+    </button>`;
 }
 
 function coachHTML(planned) {
@@ -2863,7 +2860,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '42';
+const APP_VERSION = '43';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
