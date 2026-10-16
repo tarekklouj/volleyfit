@@ -65,7 +65,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: true, vibrate: true, theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
+    goalWeight: '', goalFat: '', sound: false, vibrate: false, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
   nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
@@ -76,6 +76,8 @@ function hydrate(s) {
   const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
   delete out.profile.goal;
   if (!s.idV) { out.nutrition.sex = ''; out.idV = 14; }
+  if ((out.idV || 0) < 15) { out.profile.sound = false; out.profile.vibrate = false; out.idV = 15; }
+  if (!['off', 'button', 'auto'].includes(out.profile.iosTimer)) out.profile.iosTimer = 'off';
   if (!['h', 'f'].includes(out.nutrition.sex)) out.nutrition.sex = '';
   if (!['cycle', 'seance', 'fixe'].includes(out.profile.variety)) out.profile.variety = 'cycle';
   if (!LEVELS[out.profile.level]) out.profile.level = 'debutant';
@@ -371,6 +373,7 @@ function doExercise(id) {
     return;
   }
   state.active = { code: 'L', free: true, start: Date.now(), items: [freeItem(id)], rpe: '', notes: '' };
+  setTimeout(keepAwake, 50);
   save(); go('today');
   toast('Séance libre démarrée.', { action: 'Annuler', onAction: cancelSession, duration: 8000 });
 }
@@ -885,6 +888,7 @@ function cancelSession() {
 }
 
 function beginSession(code, light, checkin) {
+  setTimeout(keepAwake, 50);
   state.active = { code, start: Date.now(), light, checkin, planned: fitSession(code, undefined, light).minutes, items: buildItems(code, light), rpe: '', notes: '' };
   save();
   closeSheet();
@@ -957,6 +961,7 @@ function renderWorkout(el) {
   $('#abandon').onclick = cancelSession;
   $('#cancel-top').onclick = cancelSession;
   $('#focus-open').onclick = () => openFocus();
+  keepAwake();
   $$('[data-hr-open]', el).forEach(b => b.onclick = openHrLog);
   $('#add-ex').onclick = openMachineSearch;
 }
@@ -1110,7 +1115,7 @@ function toggleSet(i, k) {
   if (st.done && it.rest) {
     const lastSet = it.sets.every(x => x.done);
     const next = a.items.slice(i + 1).find(x => !x.sets.every(s => s.done));
-    startTimer(it.rest, lastSet && next ? `Ensuite : ${EX[next.ex].name}` : 'Repos');
+    startTimer(it.rest, lastSet && next ? `Ensuite : ${EX[next.ex].name}` : 'Repos', null, true);
     if (lastSet && next) {
       const ni = a.items.indexOf(next);
       setTimeout(() => $('#wx-' + ni)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 700);
@@ -1381,7 +1386,7 @@ function saveActiveSession({ auto = false } = {}) {
     items: a.items.map(it => ({ ex: it.ex, kind: it.kind, minutes: it.minutes, sets: it.sets.map(x => ({ ...x })) }))
   });
   state.active = null;
-  stopTimer(); save();
+  stopTimer(); releaseAwake(); save();
   return prs.length;
 }
 /* Séance oubliée : enregistrée automatiquement 3 h après la dernière série validée. */
@@ -1395,7 +1400,20 @@ function autoSaveForgotten() {
 
 /* ================= Chronos ================= */
 let timer = null, timerInt = null, wakeLock = null;
-function startTimer(sec, label, onDone) {
+/* Écran allumé pendant toute la séance (sauf si tu verrouilles toi-même le téléphone). */
+async function keepAwake() {
+  if (!state.active || document.hidden || !('wakeLock' in navigator) || wakeLock) return;
+  try { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } catch (e) { /* refusé par le navigateur */ }
+}
+function releaseAwake() { if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+/* Minuteur officiel de l'iPhone via le raccourci « Repos VolleyFit » : visible sur l'écran verrouillé. */
+const IOS_SHORTCUT = 'Repos VolleyFit';
+function launchIosTimer(sec) {
+  location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(IOS_SHORTCUT)}&input=text&text=${Math.max(5, Math.round(sec))}`;
+}
+function startTimer(sec, label, onDone, rest = false) {
+  if (rest && state.profile.iosTimer === 'auto') launchIosTimer(sec);
   timer = { end: Date.now() + sec * 1000, total: sec, label, onDone };
   $('#timer-label').textContent = label;
   $('#timer').hidden = false;
@@ -1403,7 +1421,8 @@ function startTimer(sec, label, onDone) {
   clearInterval(timerInt);
   timerInt = setInterval(tick, 250);
   tick();
-  if ('wakeLock' in navigator && !wakeLock) navigator.wakeLock.request('screen').then(l => { wakeLock = l; l.addEventListener('release', () => { wakeLock = null; }); }).catch(() => {});
+  keepAwake();
+  $('#timer-ios').hidden = state.profile.iosTimer === 'off';
 }
 function tick() {
   if (!timer) return;
@@ -1425,8 +1444,9 @@ function tick() {
 }
 function stopTimer() {
   clearInterval(timerInt); timer = null; $('#timer').hidden = true;
-  if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  if (!state.active) releaseAwake();
 }
+$('#timer-ios').onclick = () => { if (timer) launchIosTimer(Math.ceil((timer.end - Date.now()) / 1000)); };
 $('#timer-minus').onclick = () => { if (timer) { timer.end -= 15000; tick(); } };
 $('#timer-plus').onclick = () => { if (timer) { timer.end += 15000; timer.total += 15; tick(); } };
 $('#timer-skip').onclick = stopTimer;
@@ -1545,6 +1565,7 @@ function drawFocus() {
           ${ring(1, fmtClock(it.rest), 'repos', 'f-rest')}
           ${ring(doneN / it.sets.length, `${doneN}/${it.sets.length}`, 'séries')}
         </div>
+        ${state.profile.iosTimer !== 'off' ? `<button class="btn btn--ghost btn--sm ios-timer-btn" type="button" data-fios>⏱ ${TT('Minuteur iPhone', 'iPhone timer')} ${fmtClock(it.rest)}</button>` : ''}
         <div class="focus__inputs">
           ${e.loaded ? `<div class="stepper2"><button type="button" data-fkg="-1" aria-label="Moins lourd">−</button><label><input id="f-kg" inputmode="decimal" value="${esc(kgVal)}" aria-label="Charge en kg"><small>kg</small></label><button type="button" data-fkg="1" aria-label="Plus lourd">+</button></div>` : ''}
           <div class="stepper2"><button type="button" data-frep="-1" aria-label="Moins">−</button><label><input id="f-rep" inputmode="numeric" value="${esc(repVal)}" aria-label="${f === 'sec' ? 'Secondes' : 'Répétitions'}"><small>${f === 'sec' ? 'sec' : 'rép.'}</small></label><button type="button" data-frep="1" aria-label="Plus">+</button></div>
@@ -1579,6 +1600,7 @@ function drawFocus() {
     if ('fnext' in d) { if (focusIdx === n - 1) { closeFocus(); return openFinish(); } focusIdx++; return drawFocus(); }
     if (d.fkg) { const inp = $('#f-kg', ov), v = num(inp.value) || 0, stp = kgStep(it.ex, v); inp.value = String(Math.max(0, +(v + stp * +d.fkg).toFixed(2))); return readInputs(); }
     if (d.frep) { const inp = $('#f-rep', ov), v = num(inp.value) || 0; inp.value = String(Math.max(1, v + +d.frep)); readInputs(); $('.rings .ring__v', ov).textContent = inp.value; return; }
+    if ('fios' in d) return launchIosTimer(timer ? Math.ceil((timer.end - Date.now()) / 1000) : it.rest);
     if ('fbump' in d) { const sg = suggestFor(it); if (sg?.next != null) { it.sets.forEach(x => { if (!x.done) x.kg = String(sg.next); }); save(); toast(`Charge réglée à ${fmtKg(sg.next)} kg.`); } return drawFocus(); }
     if ('faddset' in d) { it.sets.push({ kg: '', reps: '', sec: '', done: false }); save(); return drawFocus(); }
     if ('frun' in d) return startTimer(it.minutes * 60, e.name, () => { if (state.active === a) { it.sets[0].done = true; it.sets[0].t = Date.now(); save(); if ($('#focus')) drawFocus(); } });
@@ -2058,6 +2080,23 @@ function hrZonesHTML() {
     <p class="muted small">Cible pendant tes séances : zones 2 et 3 en moyenne, zone 1 ou 2 pour la récupération. La formule est une estimation à plus ou moins 10 bpm : si ta montre mesure régulièrement plus haut, c'est que ta vraie FC max est plus élevée.</p>`;
 }
 
+function openIosGuide() {
+  const body = openSheet(`
+    <h2 class="sheet__title">${TT('Minuteur sur l\'écran verrouillé', 'Timer on the lock screen')}</h2>
+    <p class="muted">${TT('À faire une seule fois. Le minuteur officiel de l\'iPhone s\'affiche ensuite sur l\'écran verrouillé et sonne même téléphone verrouillé.', 'Do this once. The official iPhone timer then shows on the lock screen and rings even when locked.')}</p>
+    <ol class="steps">
+      <li>${TT('Ouvre l\'app <strong>Raccourcis</strong> et touche <strong>+</strong> en haut à droite.', 'Open the <strong>Shortcuts</strong> app and tap <strong>+</strong> at the top right.')}</li>
+      <li>${TT('Touche <strong>Ajouter une action</strong>, cherche <strong>minuteur</strong> et choisis <strong>Démarrer le minuteur</strong>.', 'Tap <strong>Add Action</strong>, search <strong>timer</strong> and choose <strong>Start Timer</strong>.')}</li>
+      <li>${TT('Touche le nombre (30 par défaut), puis choisis <strong>Entrée du raccourci</strong>. Touche l\'unité et choisis <strong>secondes</strong>.', 'Tap the number (30 by default), then choose <strong>Shortcut Input</strong>. Tap the unit and choose <strong>seconds</strong>.')}</li>
+      <li>${TT('Touche le nom en haut et renomme le raccourci exactement :', 'Tap the name at the top and rename the shortcut exactly:')} <strong>${IOS_SHORTCUT}</strong></li>
+      <li>${TT('Touche <strong>OK</strong>. C\'est prêt.', 'Tap <strong>Done</strong>. You\'re all set.')}</li>
+    </ol>
+    <p class="callout">${TT('Pour tester, touche le bouton ci-dessous : un minuteur de 10 secondes doit démarrer. Pour revenir, touche « ◀ VolleyFit » en haut à gauche de l\'écran.', 'To test, tap the button below: a 10-second timer should start. To come back, tap “◀ VolleyFit” at the top left of the screen.')}</p>
+    <button class="btn btn--block" type="button" id="ios-test">⏱ ${TT('Tester avec 10 secondes', 'Test with 10 seconds')}</button>
+  `, { label: TT('Minuteur iPhone', 'iPhone timer') });
+  $('#ios-test', body).onclick = () => launchIosTimer(10);
+}
+
 function renderProfile() {
   const el = $('#view-profile'), p = state.profile;
   el.innerHTML = `
@@ -2133,8 +2172,14 @@ function renderProfile() {
 
     <section class="panel form">
       <h2>Chrono de repos</h2>
+      <p class="muted small">${TT('L\'écran reste allumé pendant toute la séance, sauf si tu verrouilles le téléphone.', 'The screen stays on for the whole session, unless you lock your phone.')}</p>
       <label class="switch"><input type="checkbox" id="p-sound" ${p.sound ? 'checked' : ''}><span>Bip à la fin du repos</span></label>
       <label class="switch"><input type="checkbox" id="p-vib" ${p.vibrate ? 'checked' : ''}><span>Vibration (Android)</span></label>
+      <div class="field"><span>${TT('Minuteur iPhone sur l\'écran verrouillé', 'iPhone timer on the lock screen')}</span>
+        <div class="seg" role="group" aria-label="${TT('Minuteur iPhone', 'iPhone timer')}">${[['off', TT('Désactivé', 'Off')], ['button', TT('Bouton', 'Button')], ['auto', TT('Automatique', 'Automatic')]].map(([k, l]) => `<button type="button" data-ios="${k}" aria-pressed="${p.iosTimer === k}">${l}</button>`).join('')}</div>
+      </div>
+      <p class="muted small">${TT('Bouton : « ⏱ Minuteur iPhone » à côté du chrono de repos. Automatique : le minuteur iPhone démarre à chaque repos. Il faut d\'abord créer le raccourci une fois.', 'Button: “⏱ iPhone timer” next to the rest timer. Automatic: the iPhone timer starts at every rest. You first need to create the shortcut once.')}</p>
+      <button class="btn btn--ghost btn--block" type="button" id="ios-guide">${TT('Créer le raccourci (1 minute)', 'Create the shortcut (1 minute)')}</button>
     </section>
 
     <section class="panel form">
@@ -2161,6 +2206,12 @@ function renderProfile() {
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
   $('#p-vib').onchange = e => { p.vibrate = e.target.checked; save(); };
+  $$('[data-ios]', el).forEach(b => b.onclick = () => {
+    p.iosTimer = b.dataset.ios; save();
+    $$('[data-ios]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    if (p.iosTimer !== 'off' && !p.iosTimerGuided) { p.iosTimerGuided = true; save(); openIosGuide(); }
+  });
+  $('#ios-guide').onclick = openIosGuide;
   const idStatus = () => {
     const m = identityMissing(), hp = hrProfile();
     $('#id-status').innerHTML = m.length
@@ -2637,7 +2688,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '35';
+const APP_VERSION = '36';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;

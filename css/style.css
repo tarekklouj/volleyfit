@@ -809,3 +809,7 @@ body.has-focus .timer { display: none; }
 .coach__ok { display: inline-flex; align-items: center; gap: 4px; font-size: .85rem; color: var(--good); font-weight: 600; }
 .coach__ok svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3; }
 .coach__why { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .93rem; line-height: 1.35; color: var(--muted); }
+
+/* v36 : minuteur iPhone */
+.timer__row { grid-template-columns: minmax(0, 1fr) auto auto auto auto; }
+.ios-timer-btn { justify-self: center; }
