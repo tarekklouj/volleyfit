@@ -65,7 +65,7 @@ const defaults = () => ({
   profile: {
     name: '', height: '', gymDays: [0, 2, 4], matchDay: null,
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
-    goalWeight: '', goalFat: '', sound: false, vibrate: false, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
+    goalWeight: '', goalFat: '', sound: true, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr'
   },
   measures: [], history: [], swaps: {}, exNotes: {}, active: null,
   nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
@@ -77,6 +77,7 @@ function hydrate(s) {
   delete out.profile.goal;
   if (!s.idV) { out.nutrition.sex = ''; out.idV = 14; }
   if ((out.idV || 0) < 15) { out.profile.sound = false; out.profile.vibrate = false; out.idV = 15; }
+  if ((out.idV || 0) < 16) { out.profile.sound = true; out.idV = 16; }
   if (!['off', 'button', 'auto'].includes(out.profile.iosTimer)) out.profile.iosTimer = 'off';
   if (!['h', 'f'].includes(out.nutrition.sex)) out.nutrition.sex = '';
   if (!['cycle', 'seance', 'fixe'].includes(out.profile.variety)) out.profile.variety = 'cycle';
@@ -1413,6 +1414,7 @@ function launchIosTimer(sec) {
   location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(IOS_SHORTCUT)}&input=text&text=${Math.max(5, Math.round(sec))}`;
 }
 function startTimer(sec, label, onDone, rest = false) {
+  unlockAudio();
   if (rest && state.profile.iosTimer === 'auto') launchIosTimer(sec);
   timer = { end: Date.now() + sec * 1000, total: sec, label, onDone };
   $('#timer-label').textContent = label;
@@ -1430,6 +1432,7 @@ function tick() {
   $('#timer-time').textContent = fmtClock(left);
   $('#timer-progress').style.width = `${100 - (left / timer.total) * 100}%`;
   focusTick(left, timer.total);
+  if (state.profile.sound && left > 0 && left <= 3 && timer.lastPip !== left) { timer.lastPip = left; beep('pip'); }
   if (left <= 0) {
     clearInterval(timerInt);
     $('#timer').classList.add('is-done');
@@ -1451,16 +1454,37 @@ $('#timer-plus').onclick = () => { if (timer) { timer.end += 15000; timer.total 
 $('#timer-skip').onclick = stopTimer;
 
 let audioCtx;
-function beep() {
+/* Son : iOS n'autorise le son d'une page qu'après un toucher. On « débloque » donc le son
+   au premier toucher (validation d'une série, bouton…), puis on le réutilise à la fin du repos.
+   « transient » : le bip passe même en mode silencieux (iOS 17+) et baisse la musique un instant. */
+function unlockAudio() {
   try {
+    if (navigator.audioSession) { try { navigator.audioSession.type = 'transient'; } catch (e) {} }
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    [0, .25].forEach(t => {
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.frequency.value = 880; o.connect(g); g.connect(audioCtx.destination);
-      g.gain.setValueAtTime(.25, audioCtx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + t + .2);
-      o.start(audioCtx.currentTime + t); o.stop(audioCtx.currentTime + t + .2);
-    });
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioCtx._unlocked) {
+      const b = audioCtx.createBuffer(1, 1, 22050), src = audioCtx.createBufferSource();
+      src.buffer = b; src.connect(audioCtx.destination); src.start(0);
+      audioCtx._unlocked = true;
+    }
+  } catch (e) { /* son indisponible */ }
+}
+['touchend', 'pointerdown', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+function tone(freq, start, dur, vol) {
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'square'; o.frequency.value = freq; o.connect(g); g.connect(audioCtx.destination);
+  const t0 = audioCtx.currentTime + start;
+  g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .01);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.start(t0); o.stop(t0 + dur + .02);
+}
+function beep(kind = 'end') {
+  try {
+    if (!audioCtx) unlockAudio();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (kind === 'pip') tone(740, 0, .12, .35);
+    else { tone(988, 0, .22, .6); tone(988, .3, .22, .6); tone(1318, .6, .45, .6); }
   } catch (e) { /* son indisponible */ }
 }
 function tickElapsed() {
@@ -2173,6 +2197,7 @@ function renderProfile() {
       <h2>Chrono de repos</h2>
       <p class="muted small">${TT('L\'écran reste allumé pendant toute la séance, sauf si tu verrouilles le téléphone.', 'The screen stays on for the whole session, unless you lock your phone.')}</p>
       <label class="switch"><input type="checkbox" id="p-sound" ${p.sound ? 'checked' : ''}><span>Bip à la fin du repos</span></label>
+      <button class="btn btn--ghost btn--sm" type="button" id="p-sound-test">🔊 ${TT('Tester le bip', 'Test the beep')}</button>
       <div class="field"><span>${TT('Minuteur iPhone sur l\'écran verrouillé', 'iPhone timer on the lock screen')}</span>
         <div class="seg" role="group" aria-label="${TT('Minuteur iPhone', 'iPhone timer')}">${[['off', TT('Désactivé', 'Off')], ['button', TT('Bouton', 'Button')], ['auto', TT('Automatique', 'Automatic')]].map(([k, l]) => `<button type="button" data-ios="${k}" aria-pressed="${p.iosTimer === k}">${l}</button>`).join('')}</div>
       </div>
@@ -2203,6 +2228,7 @@ function renderProfile() {
   $('#p-gw').oninput = e => { p.goalWeight = num(e.target.value) ?? ''; save(); };
   $('#p-gf').oninput = e => { p.goalFat = num(e.target.value) ?? ''; save(); };
   $('#p-sound').onchange = e => { p.sound = e.target.checked; save(); };
+  $('#p-sound-test').onclick = () => { unlockAudio(); beep('pip'); setTimeout(() => beep('pip'), 1000); setTimeout(() => beep('pip'), 2000); setTimeout(() => beep(), 3000); };
   $$('[data-ios]', el).forEach(b => b.onclick = () => {
     p.iosTimer = b.dataset.ios; save();
     $$('[data-ios]', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -2685,7 +2711,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '37';
+const APP_VERSION = '38';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
