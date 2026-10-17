@@ -67,13 +67,13 @@ const defaults = () => ({
     cycleStart: isoDate(new Date()), warmupMin: 20, warmupMachine: 'auto',
     goalWeight: '', goalFat: '', sound: true, iosTimer: 'off', theme: 'system', variety: 'cycle', level: 'debutant', lang: 'fr', programType: 'split'
   },
-  measures: [], history: [], swaps: {}, exNotes: {}, active: null,
+  measures: [], history: [], swaps: {}, exNotes: {}, myVariant: {}, active: null,
   nutrition: { age: '', sex: '', objective: 'auto' }, food: {}, picks: {}, rerolls: {}, idV: 14
 });
 
 function hydrate(s) {
   const d = defaults();
-  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
+  const out = { ...d, ...s, profile: { ...d.profile, ...(s.profile || {}) }, swaps: {}, exNotes: s.exNotes || {}, myVariant: s.myVariant || {}, nutrition: { ...d.nutrition, ...(s.nutrition || {}) }, food: s.food || {}, picks: s.picks || {}, rerolls: s.rerolls || {} };
   delete out.profile.goal;
   if (!s.idV) { out.nutrition.sex = ''; out.idV = 14; }
   if ((out.idV || 0) < 15) { out.profile.sound = false; out.profile.vibrate = false; out.idV = 15; }
@@ -462,6 +462,22 @@ function openMachineSearch() {
   setTimeout(() => inp.focus(), 150);
 }
 
+const VL = o => o ? (window.LANG === 'en' ? o.en : o.fr) : null;
+function myVariantOf(id) { const i = state.myVariant[id]; const v = VARIANTS[id]?.v?.[i]; return v ? VL(v) : null; }
+function variantsHTML(id) {
+  const V = VARIANTS[id]; if (!V) return '';
+  const mine = state.myVariant[id];
+  return `<h3 class="sub">${TT('Réglages et variantes', 'Settings and variations')}</h3>
+    <p class="callout callout--setup"><strong>${TT('Réglage de base.', 'Basic setup.')}</strong> ${esc(VL(V.setup))}</p>
+    ${V.v.length ? `<div class="variants">${V.v.map((x, i) => { const t = VL(x); return `
+      <button class="variant" type="button" data-variant="${i}" aria-pressed="${mine === i}">
+        <span class="variant__n">${esc(t.n)}${mine === i ? ` <span class="pill pill--sm">${TT('ma variante', 'my variation')}</span>` : ''}</span>
+        <span class="variant__h">${esc(t.h)}</span>
+        <span class="variant__c">${TT('Cible :', 'Target:')} <strong>${esc(t.c)}</strong></span>
+      </button>`; }).join('')}</div>
+      <p class="muted small">${TT('Touche une variante pour en faire « ma variante » : elle s\'affichera pendant tes séances.', 'Tap a variation to make it “my variation”: it will show during your sessions.')}</p>` : ''}
+    ${V.note ? `<p class="callout">${esc(VL(V.note))}</p>` : ''}`;
+}
 function openExercise(id) {
   const e = EX[id], best = bestFor(id);
   let anim = { stop() {} };
@@ -487,6 +503,7 @@ function openExercise(id) {
     ${LOADS[id] ? loadTableHTML(id) : ''}
     <h3 class="sub">Muscles ciblés</h3>
     ${musclesHTML(e)}
+    ${variantsHTML(id)}
     <h3 class="sub">Comment faire</h3>
     <ol class="steps">${e.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
     <p class="callout callout--warn"><strong>Erreur fréquente.</strong> ${esc(e.mistake)}</p>
@@ -499,6 +516,18 @@ function openExercise(id) {
     anim.stop();
     if (state.active && view === 'today') state.active.items.forEach((x, i) => { if (x.ex === id) rerenderItem(i); });
   } });
+  $$('[data-variant]', body).forEach(b => b.onclick = () => {
+    const i = +b.dataset.variant;
+    if (state.myVariant[id] === i) delete state.myVariant[id]; else state.myVariant[id] = i;
+    save();
+    $$('[data-variant]', body).forEach(x => {
+      const on = state.myVariant[id] === +x.dataset.variant;
+      x.setAttribute('aria-pressed', String(on));
+      const n = x.querySelector('.variant__n'), base = VL(VARIANTS[id].v[+x.dataset.variant]).n;
+      n.innerHTML = esc(base) + (on ? ` <span class="pill pill--sm">${TT('ma variante', 'my variation')}</span>` : '');
+    });
+    toast(state.myVariant[id] === i ? TT(`Ma variante : ${VL(VARIANTS[id].v[i]).n}.`, `My variation: ${VL(VARIANTS[id].v[i]).n}.`) : TT('Variante retirée.', 'Variation removed.'));
+  });
   $('#ex-note', body).oninput = ev => { const v = ev.target.value.trim(); if (v) state.exNotes[id] = v; else delete state.exNotes[id]; save(); };
   anim = FIG.mount($('#anim-fig'), e.fig, { label: 'Animation : ' + e.name, target: e.target, onPhase: t => { const el = $('#anim-phase'); if (el) el.textContent = t; } });
   $$('[data-anim]', body).forEach(b => b.onclick = () => {
@@ -1159,6 +1188,7 @@ function itemHTML(it, i) {
       <h3>${esc(e.name)}</h3>
       <p class="wx__target">${it.kind === 'warmup' ? 'Échauffement, ' : it.cooldown ? 'Retour au calme, ' : ''}${targetText(it)}</p>
       <p class="wx__equip">${esc(e.equip)}${primaryText(e) ? ` <span class="wx__muscles">${esc(primaryText(e))}</span>` : ''}</p>
+      ${myVariantOf(it.ex) ? `<p class="wx__note wx__variant">${TT('Ma variante', 'My variation')} : <strong>${esc(myVariantOf(it.ex).n)}</strong>, ${esc(myVariantOf(it.ex).c.toLowerCase())}</p>` : ''}
       ${state.exNotes[it.ex] ? `<p class="wx__note">Mes réglages : ${esc(state.exNotes[it.ex])}</p>` : ''}
     </div>
     ${canSwap ? `<button class="icon-btn" type="button" data-swap="${i}" aria-label="Remplacer l'exercice">${ICON.swap}</button>` : ''}
@@ -1725,6 +1755,7 @@ function drawFocus() {
       </div>
       <h2 class="focus__name">${esc(e.name)}</h2>
       ${primaryText(e) ? `<p class="focus__mus">${esc(primaryText(e))}</p>` : ''}
+      ${myVariantOf(it.ex) ? `<p class="focus__variant">${TT('Ma variante', 'My variation')} : <strong>${esc(myVariantOf(it.ex).n)}</strong></p>` : ''}
       ${e.loaded && sug ? `<p class="focus__rec">${sug.start ? `${isAssisted(it.ex) ? 'Contrepoids' : 'Charge'} conseillée` : 'Même charge que la dernière fois'} : <strong>${fmtKg(sug.kg)} kg</strong>${sug.up ? ` <button class="pill pill--btn" type="button" data-fbump>${sug.assisted ? 'Contrepoids' : 'Monter à'} ${fmtKg(sug.next)} kg</button>` : ''}</p>` : ''}
       ${state.exNotes[it.ex] ? `<p class="wx__note">Mes réglages : ${esc(state.exNotes[it.ex])}</p>` : ''}
       ${isTime ? `
@@ -2860,7 +2891,7 @@ function toast(msg, { action, onAction, duration = 2800 } = {}) {
   clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, duration);
 }
 
-const APP_VERSION = '44';
+const APP_VERSION = '45';
 if ('serviceWorker' in navigator && location.protocol === 'https:' && !location.hostname.endsWith('claude.ai')) {
   const hadController = !!navigator.serviceWorker.controller;
   let reloaded = false;
